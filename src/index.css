@@ -17,57 +17,54 @@
   --font-body-lg: 'Inter', sans-serif;
   --font-body-sm: 'Inter', sans-serif;
 
-  /* Admin Console color tokens — same M3-style token set as agent_agrisage/
-     farmer_web_agrisage, but built on an indigo "control tower" hue instead of
-     AgriSage's field green, so the admin app is visually distinct at a glance
-     even though it shares the exact same layout language. */
-  --color-surface: #f8f8fc;
-  --color-surface-dim: #d7d7ec;
-  --color-surface-bright: #f8f8fc;
+  /* Admin Console color tokens — updated to AgriSage's green tone */
+  --color-surface: #f8fcf8;
+  --color-surface-dim: #d7ecd7;
+  --color-surface-bright: #f8fcf8;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f2f2fb;
-  --color-surface-container: #ebebf9;
-  --color-surface-container-high: #e2e2f6;
-  --color-surface-container-highest: #dadaf0;
-  --color-surface-variant: #dadaf0;
-  --color-on-surface: #171833;
-  --color-on-surface-variant: #46465a;
-  --color-inverse-surface: #2c2d47;
-  --color-inverse-on-surface: #eeeeff;
-  --color-outline: #75758a;
-  --color-outline-variant: #c3c3da;
-  --color-surface-tint: #4338ca;
-  --color-primary: #4338ca;
+  --color-surface-container-low: #f2fbf2;
+  --color-surface-container: #ebf9eb;
+  --color-surface-container-high: #e2f6e2;
+  --color-surface-container-highest: #daf0da;
+  --color-surface-variant: #daf0da;
+  --color-on-surface: #173318;
+  --color-on-surface-variant: #465a46;
+  --color-inverse-surface: #2c472d;
+  --color-inverse-on-surface: #eeffee;
+  --color-outline: #758a75;
+  --color-outline-variant: #c3dac3;
+  --color-surface-tint: #16a34a;
+  --color-primary: #16a34a;
   --color-on-primary: #ffffff;
-  --color-primary-container: #312e81;
-  --color-on-primary-container: #e0e7ff;
-  --color-inverse-primary: #a5b4fc;
-  --color-secondary: #9a3412;
+  --color-primary-container: #dcfce7;
+  --color-on-primary-container: #14532d;
+  --color-inverse-primary: #86efac;
+  --color-secondary: #0f766e;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #fb923c;
-  --color-on-secondary-container: #7c2d12;
-  --color-tertiary: #1e3a5f;
+  --color-secondary-container: #ccfbf1;
+  --color-on-secondary-container: #115e59;
+  --color-tertiary: #4d7c0f;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #2e4d7a;
-  --color-on-tertiary-container: #bfdbfe;
+  --color-tertiary-container: #ecfccb;
+  --color-on-tertiary-container: #3f6212;
   --color-error: #ba1a1a;
   --color-on-error: #ffffff;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
-  --color-primary-fixed: #e0e7ff;
-  --color-primary-fixed-dim: #a5b4fc;
-  --color-on-primary-fixed: #312e81;
-  --color-on-primary-fixed-variant: #3730a3;
-  --color-secondary-fixed: #ffddc2;
-  --color-secondary-fixed-dim: #ffb37c;
-  --color-on-secondary-fixed: #2d1600;
-  --color-on-secondary-fixed-variant: #7c2d12;
-  --color-tertiary-fixed: #cfe2ff;
-  --color-tertiary-fixed-dim: #93c5fd;
-  --color-on-tertiary-fixed: #0a1f38;
-  --color-on-tertiary-fixed-variant: #1e3a5f;
-  --color-background: #f8f8fc;
-  --color-on-background: #171833;
+  --color-primary-fixed: #dcfce7;
+  --color-primary-fixed-dim: #86efac;
+  --color-on-primary-fixed: #14532d;
+  --color-on-primary-fixed-variant: #166534;
+  --color-secondary-fixed: #ccfbf1;
+  --color-secondary-fixed-dim: #99f6e4;
+  --color-on-secondary-fixed: #042f2e;
+  --color-on-secondary-fixed-variant: #115e59;
+  --color-tertiary-fixed: #ecfccb;
+  --color-tertiary-fixed-dim: #d9f99d;
+  --color-on-tertiary-fixed: #1a2e05;
+  --color-on-tertiary-fixed-variant: #3f6212;
+  --color-background: #f8fcf8;
+  --color-on-background: #173318;
 
   /* Font sizes with matching line-height / letter-spacing / weight */
   --text-display: 36px;

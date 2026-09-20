@@ -1,35 +1,15 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { usePageHeader } from '../../context/PageHeaderContext'
 import { useToast } from '../../context/ToastContext'
-import EmptyTableRow from '../../components/ui/EmptyTableRow'
 import DetailModal from '../../components/ui/DetailModal'
 import Pagination from '../../components/ui/Pagination'
-import SearchInput from '../../components/ui/SearchInput'
-import FilterSelect from '../../components/ui/FilterSelect'
-import StatusBadge from '../../components/ui/StatusBadge'
 import { useSelectableList } from '../../hooks/useSelectableList'
 import { useFilteredList } from '../../hooks/useFilteredList'
 import { usePagination } from '../../hooks/usePagination'
 import * as aiEscalationsService from '../../services/aiEscalationsService'
-import { getAiEscalationStatusBadge } from '../../utils/badges'
 import { downloadCsv } from '../../utils/csv'
 import type { AiEscalationCase, AiEscalationReason } from '../../types'
-
-const REASON_OPTIONS = [
-  { value: '', label: 'Tất cả lý do leo thang' },
-  { value: 'Độ tin cậy thấp', label: 'Độ tin cậy thấp' },
-  { value: 'Đại lý từ chối', label: 'Đại lý từ chối' },
-  { value: 'Nông dân khiếu nại', label: 'Nông dân khiếu nại' },
-  { value: 'Đại lý yêu cầu hỗ trợ', label: 'Đại lý yêu cầu hỗ trợ' },
-]
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'Tất cả trạng thái' },
-  { value: 'Chờ Admin xử lý', label: 'Chờ Admin xử lý' },
-  { value: 'Đã phê duyệt', label: 'Đã phê duyệt' },
-  { value: 'Đã từ chối', label: 'Đã từ chối' },
-  { value: 'Đã yêu cầu khảo sát lại', label: 'Đã yêu cầu khảo sát lại' },
-]
 
 const REASON_TAG_CLASS: Record<AiEscalationReason, string> = {
   'Độ tin cậy thấp': 'bg-orange-50 text-orange-700 border-orange-200',
@@ -45,13 +25,15 @@ const DECISION_MESSAGES: Record<'approve' | 'reject' | 'survey', (id: string) =>
 }
 
 export default function AiModerationPage() {
-  usePageHeader({ title: 'Hỗ trợ duyệt AI', subtitle: 'Các ca chẩn đoán AI được đại lý leo thang lên Admin xử lý' })
+  usePageHeader({ title: '', subtitle: '' }) // Clear default header
 
   const [cases, setCases] = useState<AiEscalationCase[]>(() => aiEscalationsService.list())
   const { showToast } = useToast()
   const decisionNoteRef = useRef<HTMLTextAreaElement>(null)
 
   const [reasonFilter, setReasonFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
   const decideCase = (id: string, decision: 'approve' | 'reject' | 'survey') => {
     const note = decisionNoteRef.current?.value.trim()
@@ -63,15 +45,10 @@ export default function AiModerationPage() {
   const { selectedId, setSelectedId, selected } = useSelectableList(cases, (c) => c.id)
 
   const {
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
     filtered: filteredCases,
-    clearFilters: handleClearFiltersBase,
   } = useFilteredList(
     cases,
-    'Chờ Admin xử lý',
+    'Chờ Admin xử lý', // Default sort logic inside hook if configured, else just filters
     (item, keyword, status) =>
       (!keyword ||
         item.id.toLowerCase().includes(keyword) ||
@@ -79,13 +56,18 @@ export default function AiModerationPage() {
         item.agentName.toLowerCase().includes(keyword)) &&
       (!status || item.status === status) &&
       (!reasonFilter || item.reason === reasonFilter),
-    '',
+    '', // Default search empty
   )
 
-  const handleClearFilters = () => {
-    handleClearFiltersBase()
-    setReasonFilter('')
-  }
+  // Sync back search/status for standard behavior
+  const currentFilteredCases = cases.filter(item => 
+      (!search ||
+        item.id.toLowerCase().includes(search.toLowerCase()) ||
+        item.farmerName.toLowerCase().includes(search.toLowerCase()) ||
+        item.agentName.toLowerCase().includes(search.toLowerCase())) &&
+      (!statusFilter || item.status === statusFilter) &&
+      (!reasonFilter || item.reason === reasonFilter)
+  )
 
   const {
     page,
@@ -97,198 +79,203 @@ export default function AiModerationPage() {
     goPrev,
     goNext,
     setPage,
-  } = usePagination(filteredCases, 10)
+  } = usePagination(currentFilteredCases, 12)
 
   const pendingCount = cases.filter((c) => c.status === 'Chờ Admin xử lý').length
   const lowConfidenceCount = cases.filter((c) => c.status === 'Chờ Admin xử lý' && c.confidencePercent < 70).length
   const decidedTodayCount = cases.filter((c) => c.status === 'Đã phê duyệt' || c.status === 'Đã từ chối').length
   const totalCasesCount = cases.length
 
+  const handleExport = () => {
+    downloadCsv(
+      `ho-tro-duyet-ai-${Date.now()}.csv`,
+      currentFilteredCases.map((c) => ({
+        'Mã ca': c.id,
+        'Nông dân': c.farmerName,
+        'Đại lý phụ trách': c.agentName,
+        'Bệnh nhận diện': c.diseaseLabel,
+        'Độ tin cậy': `${c.confidencePercent}%`,
+        'Lý do leo thang': c.reason,
+        'Trạng thái': c.status,
+      })),
+    )
+    showToast(`Đã xuất báo cáo ${currentFilteredCases.length} ca leo thang`)
+  }
+
   return (
-    <>
-      <div className="flex items-center justify-end gap-space-md">
-        <button
-          className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low text-on-surface font-label-md text-label-md shadow-sm transition-colors"
-          onClick={() => {
-            downloadCsv(
-              `ho-tro-duyet-ai-${Date.now()}.csv`,
-              filteredCases.map((c) => ({
-                'Mã ca': c.id,
-                'Nông dân': c.farmerName,
-                'Đại lý phụ trách': c.agentName,
-                'Bệnh nhận diện': c.diseaseLabel,
-                'Độ tin cậy': `${c.confidencePercent}%`,
-                'Lý do leo thang': c.reason,
-                'Trạng thái': c.status,
-              })),
-            )
-            showToast(`Đã xuất báo cáo ${filteredCases.length} ca leo thang`)
-          }}
-        >
-          <span className="material-symbols-outlined text-[18px] text-outline">file_download</span>
-          <span>Xuất báo cáo</span>
-        </button>
+    <div className="flex flex-col gap-6 max-w-[1400px] mx-auto pb-8 w-full px-2">
+      {/* HEADER ROW */}
+      <div className="flex items-start justify-between mt-2">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-3xl font-semibold text-on-surface">Hỗ trợ duyệt AI</h1>
+          <p className="text-on-surface-variant text-sm">Các ca chẩn đoán bệnh cần sự can thiệp từ Quản trị viên.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant rounded bg-white hover:bg-surface-container-low text-on-surface font-medium text-sm shadow-sm"
+            onClick={handleExport}
+          >
+            <span className="material-symbols-outlined text-[16px]">download</span> Xuất báo cáo
+          </button>
+        </div>
       </div>
 
-      {/* KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border-2 border-amber-400/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Cần Admin xử lý</span>
-            <span className="p-1 rounded bg-amber-50 text-amber-700 material-symbols-outlined text-[18px]">hourglass_top</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{pendingCount}</div>
-            <div className="font-body-sm text-body-sm text-amber-700 font-medium mt-1">Đã leo thang từ đại lý</div>
-          </div>
-        </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Độ tin cậy thấp (&lt;70%)</span>
-            <span className="p-1 rounded bg-orange-50 text-orange-700 material-symbols-outlined text-[18px]">warning</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-orange-700 font-semibold">{lowConfidenceCount}</div>
-            <div className="font-body-sm text-body-sm text-orange-700 mt-1">Cần xem xét kỹ trước khi duyệt</div>
+
+
+      {/* KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+        <div className="p-4 rounded-xl border-2 border-amber-400/80 bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-amber-700 font-medium">Cần Admin xử lý</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{pendingCount}</div>
+            <div className="text-xs text-amber-700 mt-1">Đã leo thang từ đại lý</div>
           </div>
         </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Đã xử lý</span>
-            <span className="p-1 rounded bg-emerald-50 text-emerald-700 material-symbols-outlined text-[18px]">check_circle</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-primary font-semibold">{decidedTodayCount}</div>
-            <div className="font-body-sm text-body-sm text-emerald-700 font-medium mt-1">Phê duyệt hoặc từ chối</div>
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-orange-700 font-medium">Độ tin cậy thấp (&lt;70%)</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{lowConfidenceCount}</div>
+            <div className="text-xs text-orange-700 mt-1">Cần xem xét kỹ trước khi duyệt</div>
           </div>
         </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Tổng ca leo thang</span>
-            <span className="p-1 rounded bg-blue-50 text-blue-700 material-symbols-outlined text-[18px]">analytics</span>
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-on-surface-variant font-medium">Đã xử lý</span>
+          <div>
+            <div className="text-3xl font-medium text-emerald-700">{decidedTodayCount}</div>
+            <div className="text-xs text-emerald-700/80 mt-1">Phê duyệt hoặc từ chối</div>
           </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{totalCasesCount}</div>
-            <div className="font-body-sm text-body-sm text-outline mt-1">Toàn hệ thống</div>
+        </div>
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-on-surface-variant font-medium">Tổng ca leo thang</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{totalCasesCount}</div>
+            <div className="text-xs text-on-surface-variant mt-1">Toàn hệ thống</div>
           </div>
         </div>
       </div>
 
-      {/* FILTER BAR */}
-      <div className="p-space-md rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-wrap items-center justify-between gap-space-md">
-        <div className="flex flex-wrap items-center gap-space-sm flex-1">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Tìm mã ca / tên nông dân / đại lý..."
-            className="relative min-w-[240px] flex-1 max-w-sm"
-          />
-          <FilterSelect value={reasonFilter} onChange={setReasonFilter} options={REASON_OPTIONS} />
-          <FilterSelect value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
-        </div>
-        <button
-          className="px-3 py-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low font-label-md text-label-md flex items-center gap-1 transition-colors"
-          onClick={handleClearFilters}
-        >
-          <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-          <span>Xóa bộ lọc</span>
-        </button>
-      </div>
-
-      {/* MAIN TABLE */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
-        <div className="px-space-md py-space-sm border-b border-outline-variant flex items-center justify-between bg-surface-container-low/40">
+      {/* ALERT BANNER */}
+      {pendingCount > 0 && (
+        <div className="bg-[#fff9e6] border border-[#fce69a] rounded-lg p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-title-md text-title-md text-on-surface font-semibold">Danh sách ca leo thang</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">{filteredCases.length} kết quả</span>
+            <span className="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
+            <span className="text-sm font-medium text-amber-900">Yêu cầu xử lý</span>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-amber-800">Hệ thống ghi nhận {pendingCount} ca chẩn đoán đang chờ Quản trị viên xử lý.</span>
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-left border-collapse">
+      )}
+
+      {/* TOOLBAR */}
+      <div className="flex items-center justify-between mt-2">
+        <div className="relative w-[320px]">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-outline">search</span>
+          <input 
+            type="text" 
+            placeholder="Tìm mã ca / nông dân / đại lý..." 
+            className="w-full h-9 pl-9 pr-3 text-sm bg-white border border-outline-variant rounded focus:border-primary focus:ring-1 focus:ring-primary text-on-surface shadow-sm"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-on-surface">
+            <span className="text-on-surface-variant font-medium">Lý do:</span>
+            <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={reasonFilter} onChange={e => setReasonFilter(e.target.value)}>
+              <option value="">Tất cả</option>
+              <option value="Độ tin cậy thấp">Độ tin cậy thấp</option>
+              <option value="Đại lý từ chối">Đại lý từ chối</option>
+              <option value="Nông dân khiếu nại">Nông dân khiếu nại</option>
+              <option value="Đại lý yêu cầu hỗ trợ">Đại lý yêu cầu hỗ trợ</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-on-surface">
+            <span className="text-on-surface-variant font-medium">Trạng thái:</span>
+            <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">Tất cả</option>
+              <option value="Chờ Admin xử lý">Chờ Admin xử lý</option>
+              <option value="Đã phê duyệt">Đã phê duyệt</option>
+              <option value="Đã từ chối">Đã từ chối</option>
+              <option value="Đã yêu cầu khảo sát lại">Đã yêu cầu khảo sát lại</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* FLAT DATA TABLE */}
+      <div className="border border-outline-variant/60 rounded-xl overflow-hidden bg-white shadow-sm mt-2 flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
-              <tr className="bg-surface-container-low/80 border-b border-outline-variant">
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Mã ca</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Nông dân</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Đại lý phụ trách</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Bệnh nhận diện</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Độ tin cậy</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Lý do leo thang</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Trạng thái</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider text-right">Thao tác</th>
+              <tr className="bg-surface-container-lowest border-b border-outline-variant/60">
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[10%] uppercase tracking-wider">Mã ca</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[20%] uppercase tracking-wider">Nông dân</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[20%] uppercase tracking-wider">Đại lý phụ trách</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[20%] uppercase tracking-wider">Nhận diện AI</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[15%] uppercase tracking-wider">Trạng thái</th>
+                <th className="py-3 px-2 w-[15%] text-center uppercase tracking-wider font-semibold text-[13px] text-on-surface">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/60 font-body-sm text-body-sm">
-              {filteredCases.length === 0 ? (
-                <EmptyTableRow colSpan={8} message="Không tìm thấy ca phù hợp với bộ lọc." />
-              ) : null}
+            <tbody className="text-sm divide-y divide-outline-variant/60">
+              {currentFilteredCases.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-on-surface-variant">Không tìm thấy dữ liệu.</td>
+                </tr>
+              )}
               {paginatedCases.map((item) => {
                 const isSelected = item.id === selectedId
-                const statusBadge = getAiEscalationStatusBadge(item.status)
                 const canDecide = aiEscalationsService.actionsFor(item.status).length > 0
                 return (
-                  <tr
-                    key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={`transition-colors cursor-pointer ${
-                      isSelected ? 'border-l-4 border-l-primary bg-primary/5 hover:bg-primary/10' : 'hover:bg-surface-container-low'
-                    }`}
-                  >
-                    <td className={`py-3 px-3 font-semibold font-mono text-xs ${isSelected ? 'text-primary' : 'text-outline'}`}>#{item.id}</td>
-                    <td className="py-3 px-3">
-                      <div className="font-medium text-on-surface">{item.farmerName}</div>
-                      <div className="text-[11px] text-outline">{item.farmerLocation}</div>
+                  <tr key={item.id} className={`transition-colors group hover:bg-surface-container-low ${isSelected ? 'bg-primary/5' : ''}`} onClick={() => setSelectedId(item.id)}>
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
+                      <span className={`font-semibold font-mono text-xs ${isSelected ? 'text-primary' : 'text-outline'}`}>#{item.id}</span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
+                      <div className="font-medium text-on-surface group-hover:text-primary transition-colors cursor-pointer">{item.farmerName}</div>
+                      <div className="text-[11px] text-outline mt-0.5">{item.farmerLocation}</div>
+                    </td>
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
                       <div className="font-medium text-on-surface">{item.agentName}</div>
-                      <div className="text-[11px] text-outline">{item.agentHub}</div>
+                      <div className="text-[11px] text-outline mt-0.5">{item.agentHub}</div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className="font-medium text-on-surface">{item.diseaseLabel}</span>
-                      {item.diseaseLatin ? <div className="text-[11px] text-outline italic">{item.diseaseLatin}</div> : null}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-12 bg-surface-container rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${item.confidencePercent < 70 ? 'bg-orange-500' : 'bg-emerald-600'}`}
-                            style={{ width: `${item.confidencePercent}%` }}
-                          ></div>
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-10 bg-surface-container rounded-full h-1.5 overflow-hidden">
+                          <div className={`h-full rounded-full ${item.confidencePercent < 70 ? 'bg-orange-500' : 'bg-emerald-600'}`} style={{ width: `${item.confidencePercent}%` }}></div>
                         </div>
-                        <span className={`font-semibold text-[11px] ${item.confidencePercent < 70 ? 'text-orange-700' : 'text-emerald-700'}`}>
-                          {item.confidencePercent}%
-                        </span>
+                        <span className={`font-bold text-[11px] ${item.confidencePercent < 70 ? 'text-orange-700' : 'text-emerald-700'}`}>{item.confidencePercent}%</span>
                       </div>
+                      <div className="font-medium text-on-surface truncate">{item.diseaseLabel}</div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium border ${REASON_TAG_CLASS[item.reason]}`}>{item.reason}</span>
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center">
+                      <span className={`px-2.5 py-1 rounded-md border text-[11px] uppercase tracking-wider font-semibold bg-white shadow-sm whitespace-nowrap
+                        ${item.status === 'Chờ Admin xử lý' ? 'border-amber-400 text-amber-700' : ''}
+                        ${item.status === 'Đã phê duyệt' ? 'border-outline-variant/60 text-on-surface' : ''}
+                        ${item.status === 'Đã từ chối' ? 'border-error/40 text-error' : ''}
+                        ${item.status === 'Đã yêu cầu khảo sát lại' ? 'border-sky-400/60 text-sky-700' : ''}
+                      `}>
+                        {item.status === 'Chờ Admin xử lý' ? 'Pending' : item.status === 'Đã phê duyệt' ? 'Approved' : item.status === 'Đã từ chối' ? 'Rejected' : 'Survey'}
+                      </span>
                     </td>
-                    <td className="py-3 px-3">
-                      <StatusBadge label={statusBadge.label} className={statusBadge.className} minWidthClassName="min-w-[158px]" />
-                    </td>
-                    <td className="py-3 px-3 text-right">
+                    <td className="py-3 px-2 text-center">
                       {canDecide ? (
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            className="px-2 py-1 rounded bg-error-container/60 hover:bg-error-container text-on-error-container text-[11px] font-medium"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              decideCase(item.id, 'reject')
-                            }}
+                            className="px-2 py-1.5 rounded border border-error/40 hover:bg-error/5 text-error text-[11px] font-semibold bg-white shadow-sm"
+                            onClick={(e) => { e.stopPropagation(); decideCase(item.id, 'reject') }}
                           >
                             Từ chối
                           </button>
                           <button
-                            className="px-2 py-1 rounded bg-primary hover:bg-primary-container text-on-primary text-[11px] font-medium"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              decideCase(item.id, 'approve')
-                            }}
+                            className="px-2 py-1.5 rounded border border-primary/40 bg-primary/10 hover:bg-primary text-primary hover:text-white text-[11px] font-semibold shadow-sm transition-colors"
+                            onClick={(e) => { e.stopPropagation(); decideCase(item.id, 'approve') }}
                           >
-                            Phê duyệt
+                            Duyệt
                           </button>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-outline">Đã xử lý</span>
+                        <span className="text-[11px] text-outline font-medium">Đã xử lý</span>
                       )}
                     </td>
                   </tr>
@@ -297,17 +284,26 @@ export default function AiModerationPage() {
             </tbody>
           </table>
         </div>
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          totalCount={totalCount}
-          unitLabel="ca leo thang"
-          goPrev={goPrev}
-          goNext={goNext}
-          setPage={setPage}
-        />
+        
+        {/* FOOTER PAGINATION */}
+        <div className="px-4 py-3 bg-white flex items-center justify-between text-sm text-on-surface-variant">
+          <div>
+            Hiển thị {startIndex + 1} đến {endIndex} của {totalCount} ca leo thang
+          </div>
+          <div className="flex items-center gap-6">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalCount={totalCount}
+              unitLabel=""
+              goPrev={goPrev}
+              goNext={goNext}
+              setPage={setPage}
+            />
+          </div>
+        </div>
       </div>
 
       {/* DETAIL MODAL */}
@@ -319,10 +315,10 @@ export default function AiModerationPage() {
                 <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-primary/10 text-primary">#{selected.id}</span>
                 <span className="font-title-md text-title-md text-on-surface font-semibold">Chi tiết ca leo thang</span>
               </div>
-              <StatusBadge
-                label={getAiEscalationStatusBadge(selected.status).label}
-                className={getAiEscalationStatusBadge(selected.status).className}
-              />
+              <span className={`px-2.5 py-1 rounded font-semibold text-[11px] border uppercase tracking-wider ${
+                  selected.status === 'Chờ Admin xử lý' ? 'border-amber-400 text-amber-700 bg-amber-50' : 
+                  selected.status === 'Đã phê duyệt' ? 'border-outline-variant/60 text-on-surface bg-surface-container-lowest' : 'border-error/40 text-error bg-error/5'
+                }`}>{selected.status}</span>
             </div>
 
             <div className="p-space-md flex flex-col gap-space-xs">
@@ -397,7 +393,7 @@ export default function AiModerationPage() {
               </span>
               <p className="text-xs text-on-surface-variant leading-relaxed bg-surface-container-low p-2 rounded mt-1">{selected.reasonNote}</p>
               {selected.agentNote ? (
-                <div className="p-2.5 rounded bg-amber-50/90 border-l-4 border-amber-500 text-amber-900 text-xs flex items-start gap-2">
+                <div className="p-2.5 rounded bg-amber-50/90 border-l-4 border-amber-500 text-amber-900 text-xs flex items-start gap-2 mt-1">
                   <span className="material-symbols-outlined text-amber-600 text-[16px] mt-0.5 shrink-0">chat</span>
                   <div>
                     <span className="font-semibold">Ghi chú của đại lý:</span> {selected.agentNote}
@@ -436,7 +432,7 @@ export default function AiModerationPage() {
                       Từ chối
                     </button>
                     <button
-                      className="w-full py-2.5 px-3 rounded-lg bg-primary-container hover:bg-primary text-white font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                      className="w-full py-2.5 px-3 rounded-lg bg-[#171833] hover:bg-black text-white font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                       onClick={() => decideCase(selected.id, 'approve')}
                     >
                       <span className="material-symbols-outlined text-[18px]">check</span>
@@ -453,6 +449,6 @@ export default function AiModerationPage() {
           </div>
         ) : null}
       </DetailModal>
-    </>
+    </div>
   )
 }

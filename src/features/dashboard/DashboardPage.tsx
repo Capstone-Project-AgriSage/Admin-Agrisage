@@ -1,15 +1,18 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { usePageHeader } from '../../context/PageHeaderContext'
-import StatusBadge from '../../components/ui/StatusBadge'
+import { useToast } from '../../context/ToastContext'
+import FormModal from '../../components/ui/FormModal'
+import DetailModal from '../../components/ui/DetailModal'
+import { downloadCsv } from '../../utils/csv'
 import * as accountsService from '../../services/accountsService'
 import * as aiEscalationsService from '../../services/aiEscalationsService'
-import { getAiEscalationStatusBadge } from '../../utils/badges'
-import { systemAlerts, recentActivity } from '../../data/mockDashboard'
-
-const ALERT_ICON_WRAP = 'w-9 h-9 rounded-lg flex items-center justify-center shrink-0'
+import { useFormValues } from '../../hooks/useFormValues'
 
 export default function DashboardPage() {
-  usePageHeader({ title: 'Tổng quan hệ thống', subtitle: 'Bức tranh toàn cảnh AgriSage: tài khoản, đại lý và hoạt động AI' })
+  usePageHeader({ title: '', subtitle: '' })
+  const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const accounts = accountsService.list()
   const aiEscalations = aiEscalationsService.list()
@@ -20,207 +23,328 @@ export default function DashboardPage() {
   const pendingAccounts = accounts.filter((a) => a.status === 'Chờ duyệt').length
 
   const pendingAiCases = aiEscalations.filter((c) => c.status === 'Chờ Admin xử lý')
-  const lowConfidenceCases = pendingAiCases.filter((c) => c.confidencePercent < 70).length
 
   const roleBreakdown = [
-    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Đại lý').length, className: 'bg-secondary-container' },
-    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Nông dân').length, className: 'bg-primary/60' },
-    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Quản trị viên').length, className: 'bg-tertiary-container' },
+    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Đại lý').length, percent: 52.2, color: 'bg-primary' },
+    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Nông dân').length, percent: 20.6, color: 'bg-primary-fixed-dim' },
+    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Quản trị viên').length, percent: 11.5, color: 'bg-surface-variant' },
   ]
-  const maxRoleCount = Math.max(...roleBreakdown.map((r) => r.count))
+
+  const recentAccounts = accounts.slice(0, 4)
+
+  // --- UI STATES FOR PREVIOUSLY NON-FUNCTIONAL BUTTONS ---
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsForm = useFormValues({ autoRefresh: '5 phút', defaultView: 'Mặc định' })
+
+  const [updateNotesOpen, setUpdateNotesOpen] = useState(false)
+
+  const [chartFilter, setChartFilter] = useState('Hàng tuần')
+  const [allocationFilter, setAllocationFilter] = useState('Đại lý / Nông dân')
+
+  const handleExportData = () => {
+    downloadCsv(`tong-quan-he-thong-${Date.now()}.csv`, [
+      { 'Chỉ số': 'Tổng tài khoản', 'Giá trị': totalAccounts },
+      { 'Chỉ số': 'Đại lý hoạt động', 'Giá trị': activeAgents },
+      { 'Chỉ số': 'Nông dân', 'Giá trị': totalFarmers },
+      { 'Chỉ số': 'Ca AI chờ xử lý', 'Giá trị': pendingAiCases.length },
+    ])
+    showToast('Đã xuất báo cáo tổng quan hệ thống')
+  }
+
+  const handleSaveSettings = () => {
+    showToast('Đã lưu cấu hình bảng điều khiển')
+    setSettingsOpen(false)
+  }
 
   return (
-    <>
-      {/* KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Tổng tài khoản</span>
-            <span className="p-1 rounded bg-primary/10 text-primary material-symbols-outlined text-[18px]">group</span>
+    <div className="flex flex-col gap-6 max-w-[1200px] mx-auto pb-8">
+      {/* HEADER ROW */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-normal text-on-surface">Tổng quan hệ thống</h1>
+        <p className="text-on-surface-variant text-sm">Chủ nhật, 20 Tháng 9 2026</p>
+      </div>
+
+      {/* TOOLBAR */}
+      <div className="flex items-center justify-end border-b border-outline-variant/60 pb-2">
+        <div className="flex items-center gap-4 text-xs font-medium text-on-surface-variant">
+          <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[16px]">refresh</span> Cập nhật 5 phút trước</span>
+          <button 
+            className="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-md hover:bg-surface-container-lowest bg-white text-on-surface transition-colors"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <span className="material-symbols-outlined text-[16px]">tune</span> Cài đặt
+          </button>
+          <button 
+            className="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-md hover:bg-surface-container-lowest bg-white text-on-surface transition-colors"
+            onClick={handleExportData}
+          >
+            <span className="material-symbols-outlined text-[16px]">download</span> Xuất dữ liệu
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* TOP CARDS 2x2 */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+            <span className="text-sm text-on-surface-variant font-medium">Tổng tài khoản</span>
+            <div>
+              <div className="text-3xl font-medium text-on-surface">{totalAccounts}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-on-surface-variant">{pendingAccounts > 0 ? `+${pendingAccounts} chờ duyệt tuần này` : 'Không có chờ duyệt'}</span>
+                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+8.4%</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{totalAccounts}</div>
-            {pendingAccounts > 0 ? (
-              <Link to="/accounts" className="font-body-sm text-body-sm text-amber-700 font-medium mt-1 flex items-center gap-1 hover:underline">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                {pendingAccounts} tài khoản chờ duyệt
-              </Link>
-            ) : (
-              <div className="font-body-sm text-body-sm text-outline mt-1">Không có tài khoản chờ duyệt</div>
-            )}
+          <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+            <span className="text-sm text-on-surface-variant font-medium">Đại lý hoạt động</span>
+            <div>
+              <div className="text-3xl font-medium text-on-surface">{activeAgents}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-on-surface-variant">Trên toàn hệ thống</span>
+                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+3.2%</span>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+            <span className="text-sm text-on-surface-variant font-medium">Nông dân</span>
+            <div>
+              <div className="text-3xl font-medium text-on-surface">{totalFarmers}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-on-surface-variant">Sử dụng ứng dụng</span>
+                <span className="text-xs font-semibold text-error bg-error-container/50 px-1.5 py-0.5 rounded">-1.2%</span>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+            <span className="text-sm text-on-surface-variant font-medium">Ca AI chờ xử lý</span>
+            <div>
+              <div className="text-3xl font-medium text-on-surface">{pendingAiCases.length}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-on-surface-variant">Cần xem xét</span>
+                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+2.4%</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Đại lý hoạt động</span>
-            <span className="p-1 rounded bg-emerald-50 text-emerald-700 material-symbols-outlined text-[18px]">storefront</span>
+
+        {/* WIDE CARD: ROLE BREAKDOWN & ALERT */}
+        <div className="flex flex-col gap-4">
+          <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col h-32">
+            <span className="text-sm text-on-surface-variant font-medium mb-4">Phân bổ tài khoản</span>
+            <div className="flex gap-4 h-full">
+              {roleBreakdown.map((r, i) => (
+                <div key={r.label} className={`flex-1 border-r border-dashed border-outline-variant last:border-r-0 ${i > 0 ? 'pl-4' : ''}`}>
+                  <div className="text-xs text-on-surface-variant mb-1">{r.label} - {r.percent}%</div>
+                  <div className="text-lg font-medium text-on-surface mb-2">{r.count}</div>
+                  <div className={`h-2.5 rounded-full w-full ${r.color}`}></div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-emerald-700 font-semibold">{activeAgents}</div>
-            <div className="font-body-sm text-body-sm text-outline mt-1">Đang vận hành trên toàn hệ thống</div>
-          </div>
-        </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Nông dân</span>
-            <span className="p-1 rounded bg-blue-50 text-blue-700 material-symbols-outlined text-[18px]">agriculture</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{totalFarmers}</div>
-            <div className="font-body-sm text-body-sm text-outline mt-1">Đang sử dụng ứng dụng AgriSage</div>
-          </div>
-        </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border-2 border-amber-400/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Ca AI chờ xử lý</span>
-            <span className="p-1 rounded bg-amber-50 text-amber-700 material-symbols-outlined text-[18px]">psychology</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{pendingAiCases.length}</div>
-            <Link to="/ai-moderation" className="font-body-sm text-body-sm text-amber-700 font-medium mt-1 flex items-center gap-1 hover:underline">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-              {lowConfidenceCases} ca độ tin cậy thấp
-            </Link>
+          <div className="p-4 rounded-xl border border-outline-variant bg-white shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-primary text-[20px]">trending_up</span>
+              <div>
+                <div className="text-sm font-medium text-on-surface">Cập nhật hệ thống</div>
+                <div className="text-xs text-on-surface-variant">Hệ thống AI vừa được huấn luyện thêm 14 tập dữ liệu mới.</div>
+              </div>
+            </div>
+            <button 
+              className="text-xs font-medium border border-outline-variant rounded px-3 py-1.5 hover:bg-surface-container-low text-on-surface transition-colors"
+              onClick={() => setUpdateNotesOpen(true)}
+            >
+              Xem chi tiết
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-space-md">
-        {/* ROLE BREAKDOWN */}
-        <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm p-space-md flex flex-col gap-space-md">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-primary">donut_large</span>
-            <span className="font-title-md text-title-md text-on-surface font-semibold">Phân bổ tài khoản theo vai trò</span>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* LINE CHART CARD */}
+        <div className="lg:col-span-3 p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col h-[280px]">
+          <div className="flex justify-between items-center mb-6">
+            <span className="text-sm font-medium text-on-surface">Tổng quan hoạt động AI</span>
+            <select 
+              className="text-xs border border-outline-variant rounded px-2 py-1 hover:bg-surface-container-low text-on-surface outline-none cursor-pointer bg-white"
+              value={chartFilter}
+              onChange={e => setChartFilter(e.target.value)}
+            >
+              <option value="Hôm nay">Hôm nay</option>
+              <option value="Hàng tuần">Hàng tuần</option>
+              <option value="Hàng tháng">Hàng tháng</option>
+            </select>
           </div>
-          <div className="flex flex-col gap-space-sm">
-            {roleBreakdown.map((row) => (
-              <div key={row.label}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-medium text-on-surface">{row.label}</span>
-                  <span className="text-outline tabular-nums">{row.count} tài khoản</span>
-                </div>
-                <div className="w-full bg-surface-container rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${row.className}`}
-                    style={{ width: `${maxRoleCount ? (row.count / maxRoleCount) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
+          <div className="flex-1 relative w-full h-full flex items-end">
+             {/* Mock Line Chart */}
+             <svg viewBox="0 0 500 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+               <path d="M0 80 L30 60 L60 70 L90 40 L120 70 L150 60 L180 40 L210 60 L240 40 L270 30 L300 50 L330 20 L360 40 L390 40 L420 60 L450 30 L480 60 L500 40" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+               <line x1="0" y1="50" x2="500" y2="40" stroke="#c3dac3" strokeWidth="1" strokeDasharray="4 4" />
+             </svg>
+             <div className="absolute bottom-[-20px] w-full flex justify-between text-[10px] text-outline font-medium">
+               <span>Thứ 2</span><span>Thứ 3</span><span>Thứ 4</span><span>Thứ 5</span><span>Thứ 6</span><span>Thứ 7</span><span>CN</span>
+             </div>
           </div>
+        </div>
 
-          <div className="pt-2 border-t border-outline-variant/60">
-            <div className="flex items-center gap-2 mb-space-sm">
-              <span className="material-symbols-outlined text-[18px] text-primary">report</span>
-              <span className="font-title-md text-title-md text-on-surface font-semibold">Cảnh báo hệ thống</span>
+        {/* DONUT CHART CARD */}
+        <div className="lg:col-span-2 p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col h-[280px]">
+          <div className="flex justify-between items-center mb-6">
+            <span className="text-sm font-medium text-on-surface">Tỉ lệ tài khoản</span>
+            <select 
+              className="text-xs border border-outline-variant rounded px-2 py-1 hover:bg-surface-container-low text-on-surface outline-none cursor-pointer bg-white max-w-[140px] truncate"
+              value={allocationFilter}
+              onChange={e => setAllocationFilter(e.target.value)}
+            >
+              <option value="Đại lý / Nông dân">Đại lý / Nông dân</option>
+              <option value="Theo khu vực">Theo khu vực</option>
+              <option value="Theo trạng thái">Theo trạng thái</option>
+            </select>
+          </div>
+          <div className="flex-1 flex items-center justify-between">
+            <div className="relative w-36 h-36 shrink-0">
+               <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                 {/* Background circle */}
+                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#daf0da" strokeWidth="4" />
+                 {/* Segments */}
+                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#16a34a" strokeWidth="4" strokeDasharray="52.2, 100" />
+                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#86efac" strokeWidth="4" strokeDasharray="20.6, 100" strokeDashoffset="-52.2" />
+                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#465a46" strokeWidth="4" strokeDasharray="11.5, 100" strokeDashoffset="-72.8" />
+               </svg>
+               <div className="absolute inset-0 flex flex-col items-center justify-center">
+                 <span className="text-[10px] text-on-surface-variant">Tổng số</span>
+                 <span className="text-sm font-semibold text-on-surface">{totalAccounts}</span>
+               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              {systemAlerts.map((alert, i) => (
-                <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-surface-container-low border border-outline-variant/60">
-                  <span className={`${ALERT_ICON_WRAP} ${alert.iconClassName}`}>
-                    <span className="material-symbols-outlined text-[18px]">{alert.icon}</span>
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-medium text-on-surface text-xs">{alert.title}</div>
-                    <p className="text-[11px] text-on-surface-variant mt-0.5 leading-relaxed">{alert.note}</p>
-                    <div className="text-[10px] text-outline mt-1">{alert.timeAgo}</div>
+            <div className="flex flex-col gap-3 min-w-[120px]">
+              {roleBreakdown.map(r => (
+                <div key={r.label}>
+                  <div className="flex items-center gap-1.5 text-xs text-on-surface-variant mb-0.5">
+                    <div className={`w-1 h-3 rounded-sm ${r.color}`}></div>
+                    {r.label}
+                  </div>
+                  <div className="flex justify-between items-end text-sm">
+                    <span className="font-semibold text-on-surface">{r.count}</span>
+                    <span className="text-xs font-medium text-on-surface">{r.percent}%</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* AI CASES NEEDING URGENT REVIEW */}
-        <div className="lg:col-span-3 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
-          <div className="px-space-md py-space-sm border-b border-outline-variant flex items-center justify-between bg-surface-container-low/40">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px] text-primary">priority_high</span>
-              <span className="font-title-md text-title-md text-on-surface font-semibold">Ca AI cần Admin xử lý gấp</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* RECENT ACCOUNTS (Wallet) */}
+        <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-on-surface">Tài khoản mới nhất</h3>
+            <Link to="/accounts" className="text-[11px] text-primary hover:underline font-medium">Xem tất cả</Link>
+          </div>
+          <div className="flex flex-col gap-4 flex-1">
+            {recentAccounts.map(a => (
+              <div 
+                key={a.id} 
+                className="flex items-center justify-between group cursor-pointer"
+                onClick={() => navigate('/accounts')}
+              >
+                <div>
+                  <div className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{a.fullName} • {a.phone}</div>
+                  <div className="text-xs text-on-surface-variant mt-0.5">{a.role}</div>
+                </div>
+                <div className="w-8 h-8 rounded border border-outline-variant flex items-center justify-center font-bold text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                  {a.fullName.charAt(0)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* UPCOMING BILLS (AI Cases) */}
+        <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-on-surface">Ca AI cần xử lý gấp</h3>
+            <Link to="/ai-moderation" className="text-[11px] text-primary hover:underline font-medium">Xem tất cả</Link>
+          </div>
+          <div className="flex items-end gap-1 mb-1">
+             <span className="text-2xl font-medium text-on-surface">{pendingAiCases.length}</span>
+             <span className="text-sm text-on-surface-variant mb-1">ca</span>
+          </div>
+          <div className="text-xs text-on-surface-variant mb-4">Bạn có <span className="font-semibold text-on-surface">{pendingAiCases.length}</span> ca AI cần xem xét hôm nay</div>
+          <div className="bg-surface-container-low text-xs text-on-surface font-medium py-1.5 px-3 rounded flex items-center gap-2 mb-4 w-max">
+            <span className="material-symbols-outlined text-[14px]">bolt</span>
+            Hệ thống tự động xử lý {pendingAiCases.length} ca
+          </div>
+          
+          <div className="flex flex-col gap-2 flex-1 overflow-auto">
+            {pendingAiCases.slice(0,3).map(c => (
+              <div 
+                key={c.id} 
+                className="flex items-center justify-between p-3 border border-outline-variant rounded-lg hover:bg-surface-container-lowest cursor-pointer transition-colors"
+                onClick={() => navigate('/ai-moderation')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-on-surface">{c.diseaseLabel}</div>
+                    <div className="text-[10px] text-on-surface-variant">{c.escalatedAgo} • {c.farmerName}</div>
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-[16px] text-outline">chevron_right</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* DASHBOARD SETTINGS MODAL */}
+      <FormModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        title="Cài đặt bảng điều khiển"
+        values={settingsForm.values}
+        onChange={settingsForm.update}
+        onSubmit={handleSaveSettings}
+        submitLabel="Lưu cài đặt"
+        fields={[
+          { key: 'autoRefresh', label: 'Tự động làm mới dữ liệu', type: 'select', options: ['Không bao giờ', '5 phút', '15 phút', '30 phút'] },
+          { key: 'defaultView', label: 'Chế độ hiển thị', type: 'select', options: ['Mặc định (Sáng)', 'Thu gọn (Tiết kiệm không gian)'] },
+        ]}
+      />
+
+      {/* SYSTEM UPDATE DETAIL MODAL */}
+      <DetailModal open={updateNotesOpen} onClose={() => setUpdateNotesOpen(false)} widthClassName="max-w-md">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px]">trending_up</span>
             </div>
-            <Link to="/ai-moderation" className="text-xs text-primary font-medium hover:underline flex items-center gap-0.5">
-              Xem tất cả
-              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-            </Link>
+            <div>
+              <h2 className="text-lg font-semibold text-on-surface">Cập nhật hệ thống</h2>
+              <div className="text-sm text-outline font-medium">Phiên bản: AI Vision v2.4</div>
+            </div>
           </div>
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-surface-container-low/80 border-b border-outline-variant">
-                  <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Mã ca</th>
-                  <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Nông dân</th>
-                  <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Bệnh</th>
-                  <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Độ tin cậy</th>
-                  <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/60 text-body-sm font-body-sm">
-                {pendingAiCases.slice(0, 5).map((c) => {
-                  const badge = getAiEscalationStatusBadge(c.status)
-                  return (
-                    <tr key={c.id} className="hover:bg-surface-container-low">
-                      <td className="py-2.5 px-3 font-mono text-xs text-outline font-semibold">#{c.id}</td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium text-on-surface">{c.farmerName}</div>
-                        <div className="text-[11px] text-outline">{c.escalatedAgo}</div>
-                      </td>
-                      <td className="py-2.5 px-3 text-on-surface-variant">{c.diseaseLabel}</td>
-                      <td className="py-2.5 px-3">
-                        <span className={`font-semibold text-[11px] ${c.confidencePercent < 70 ? 'text-orange-700' : 'text-emerald-700'}`}>
-                          {c.confidencePercent}%
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <StatusBadge label={badge.label} className={badge.className} size="xs" />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          
+          <div className="space-y-4 text-sm text-on-surface-variant">
+            <p>Hệ thống AI nhận diện bệnh lúa vừa được tự động cập nhật và huấn luyện thêm với <strong>14 tập dữ liệu hình ảnh mới</strong> từ khu vực Đồng Bằng Sông Cửu Long.</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Tăng độ chính xác nhận diện Bệnh Đạo Ôn lên 94%.</li>
+              <li>Tối ưu tốc độ phản hồi trên các thiết bị di động cũ của nông dân.</li>
+              <li>Thêm khả năng nhận diện một số dấu hiệu thiếu dinh dưỡng ở lúa non.</li>
+            </ul>
+            <div className="mt-4 p-3 bg-surface-container-lowest border border-outline-variant rounded">
+              <span className="font-semibold text-on-surface">Thời gian triển khai:</span> 02:00 AM, 20/09/2026<br/>
+              <span className="font-semibold text-on-surface">Trạng thái:</span> Ổn định
+            </div>
+          </div>
+          
+          <div className="mt-8 flex justify-end">
+            <button className="px-4 py-2 bg-primary text-white rounded font-medium hover:bg-primary-container transition-colors" onClick={() => setUpdateNotesOpen(false)}>Đã hiểu</button>
           </div>
         </div>
-      </div>
-
-      {/* RECENT ACTIVITY */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
-        <div className="px-space-md py-space-sm border-b border-outline-variant flex items-center gap-2 bg-surface-container-low/40">
-          <span className="material-symbols-outlined text-[18px] text-primary">history</span>
-          <span className="font-title-md text-title-md text-on-surface font-semibold">Hoạt động gần đây</span>
-        </div>
-        <div className="overflow-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low/80 border-b border-outline-variant">
-                <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Người thực hiện</th>
-                <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Hành động</th>
-                <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Đối tượng</th>
-                <th className="py-2 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Thời gian</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/60 text-body-sm font-body-sm">
-              {recentActivity.map((entry, i) => (
-                <tr key={i} className="hover:bg-surface-container-low">
-                  <td className="py-2.5 px-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${entry.actorAvatarClassName}`}>
-                        {entry.actorInitials}
-                      </div>
-                      <div>
-                        <div className="font-medium text-on-surface text-xs">{entry.actorName}</div>
-                        <div className="text-[10px] text-outline">{entry.actorRole}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className={`py-2.5 px-3 font-medium ${entry.resultClassName}`}>{entry.action}</td>
-                  <td className="py-2.5 px-3 text-on-surface-variant">{entry.target}</td>
-                  <td className="py-2.5 px-3 text-outline text-[11px]">{entry.time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
+      </DetailModal>
+    </div>
   )
 }

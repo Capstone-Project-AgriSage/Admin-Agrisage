@@ -1,45 +1,21 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { usePageHeader } from '../../context/PageHeaderContext'
 import { useToast } from '../../context/ToastContext'
 import RowActionsMenu from '../../components/ui/RowActionsMenu'
-import EmptyTableRow from '../../components/ui/EmptyTableRow'
 import DetailModal from '../../components/ui/DetailModal'
 import FormModal from '../../components/ui/FormModal'
 import Pagination from '../../components/ui/Pagination'
-import SearchInput from '../../components/ui/SearchInput'
-import FilterSelect from '../../components/ui/FilterSelect'
-import StatusBadge from '../../components/ui/StatusBadge'
 import { useSelectableList } from '../../hooks/useSelectableList'
 import { useFilteredList } from '../../hooks/useFilteredList'
 import { usePagination } from '../../hooks/usePagination'
 import { useFormValues } from '../../hooks/useFormValues'
 import * as accountsService from '../../services/accountsService'
-import { getAccountStatusBadge } from '../../utils/badges'
 import { downloadCsv } from '../../utils/csv'
 import type { Account, AccountActionId, AccountRole, AccountStatus } from '../../types'
 
-const ROLE_OPTIONS = [
-  { value: '', label: 'Tất cả vai trò' },
-  { value: 'Quản trị viên', label: 'Quản trị viên' },
-  { value: 'Đại lý', label: 'Đại lý' },
-  { value: 'Nông dân', label: 'Nông dân' },
-]
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'Tất cả trạng thái' },
-  { value: 'Đang hoạt động', label: 'Đang hoạt động' },
-  { value: 'Bị khóa', label: 'Bị khóa' },
-  { value: 'Chờ duyệt', label: 'Chờ duyệt' },
-]
-
-const ROLE_TAG_CLASS: Record<AccountRole, string> = {
-  'Quản trị viên': 'bg-primary/10 text-primary',
-  'Đại lý': 'bg-secondary-container/40 text-on-secondary-container',
-  'Nông dân': 'bg-surface-container-high text-on-surface-variant',
-}
-
 export default function AccountsPage() {
-  usePageHeader({ title: 'Quản lý tài khoản', subtitle: 'Toàn bộ tài khoản Quản trị viên, Đại lý và Nông dân trong hệ thống' })
+  usePageHeader({ title: '', subtitle: '' })
 
   const [accountList, setAccountList] = useState<Account[]>(() => accountsService.list())
   const { showToast } = useToast()
@@ -50,6 +26,7 @@ export default function AccountsPage() {
   const roleChangeForm = useFormValues({ role: 'Đại lý' })
 
   const [roleFilter, setRoleFilter] = useState('')
+  const [regionFilter, setRegionFilter] = useState('')
 
   const {
     search,
@@ -57,7 +34,6 @@ export default function AccountsPage() {
     statusFilter,
     setStatusFilter,
     filtered: filteredAccounts,
-    clearFilters: handleClearFiltersBase,
   } = useFilteredList(
     accountList,
     '',
@@ -68,14 +44,10 @@ export default function AccountsPage() {
         item.email.toLowerCase().includes(keyword) ||
         item.phone.includes(keyword)) &&
       (!status || item.status === (status as AccountStatus)) &&
-      (!roleFilter || item.role === (roleFilter as AccountRole)),
+      (!roleFilter || item.role === (roleFilter as AccountRole)) &&
+      (!regionFilter || item.region === regionFilter),
     '',
   )
-
-  const handleClearFilters = () => {
-    handleClearFiltersBase()
-    setRoleFilter('')
-  }
 
   const {
     page,
@@ -87,24 +59,20 @@ export default function AccountsPage() {
     goPrev,
     goNext,
     setPage,
-  } = usePagination(filteredAccounts, 10)
+  } = usePagination(filteredAccounts, 12)
 
   const { selectedId, setSelectedId, selected } = useSelectableList(accountList, (a) => a.id)
 
   const totalAccounts = accountList.length
   const activeCount = accountList.filter((a) => a.status === 'Đang hoạt động').length
   const lockedCount = accountList.filter((a) => a.status === 'Bị khóa').length
-  const pendingCount = accountList.filter((a) => a.status === 'Chờ duyệt').length
+  const pendingAccounts = accountList.filter((a) => a.status === 'Chờ duyệt')
+  const pendingCount = pendingAccounts.length
 
   const setAccountStatus = (id: string, status: AccountStatus, logNote: string, toastMessage: string) => {
     accountsService.setStatus(id, status, logNote)
     setAccountList(accountsService.list())
     showToast(toastMessage)
-  }
-
-  const openRoleChange = (account: Account) => {
-    roleChangeForm.reset({ role: account.role })
-    setRoleChangeTarget(account)
   }
 
   const handleAccountAction = (account: Account, actionId: AccountActionId) => {
@@ -126,11 +94,11 @@ export default function AccountsPage() {
         break
       case 'reset-password':
         accountsService.resetPassword(account.id)
-        setAccountList(accountsService.list())
         showToast(`Đã gửi email đặt lại mật khẩu cho ${account.email}`)
         break
       case 'change-role':
-        openRoleChange(account)
+        roleChangeForm.reset({ role: account.role })
+        setRoleChangeTarget(account)
         break
     }
   }
@@ -138,10 +106,6 @@ export default function AccountsPage() {
   const handleChangeRole = () => {
     if (!roleChangeTarget) return
     const newRole = roleChangeForm.values.role as AccountRole
-    if (newRole === roleChangeTarget.role) {
-      showToast('Vai trò mới trùng với vai trò hiện tại')
-      return
-    }
     accountsService.setRole(roleChangeTarget.id, newRole)
     setAccountList(accountsService.list())
     showToast(`Đã đổi vai trò của ${roleChangeTarget.fullName} thành "${newRole}"`)
@@ -150,182 +114,215 @@ export default function AccountsPage() {
 
   const handleCreateAccount = () => {
     const { fullName, email, phone, role, region } = createForm.values
-    if (!fullName || !email) {
-      showToast('Vui lòng nhập đầy đủ họ tên và email')
-      return
-    }
-    const created = accountsService.create({ fullName, email, phone, role: role as AccountRole, region })
+    accountsService.create({ fullName, email, phone, role: role as AccountRole, region })
     setAccountList(accountsService.list())
-    showToast(`Đã tạo tài khoản mới #${created.id} cho ${fullName}`)
+    showToast(`Đã tạo tài khoản mới cho ${fullName}`)
     setCreateOpen(false)
     createForm.reset({ fullName: '', email: '', phone: '', role: 'Đại lý', region: '' })
   }
 
+  const mapAccessLevel = (role: string) => {
+    if (role === 'Quản trị viên') return 'Full'
+    if (role === 'Đại lý') return 'Scoped'
+    return 'Read only'
+  }
+
   return (
-    <>
-      {/* UTILITY ACTIONS */}
-      <div className="flex items-center justify-end gap-space-md">
-        <div className="flex items-center gap-space-sm">
-          <button
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low text-on-surface font-label-md text-label-md shadow-sm transition-colors"
-            onClick={() => {
-              downloadCsv(
-                `danh-sach-tai-khoan-${Date.now()}.csv`,
-                filteredAccounts.map((a) => ({
-                  'Mã tài khoản': a.id,
-                  'Họ tên': a.fullName,
-                  Email: a.email,
-                  'Số điện thoại': a.phone,
-                  'Vai trò': a.role,
-                  'Khu vực': a.region,
-                  'Trạng thái': a.status,
-                })),
-              )
-              showToast(`Đã xuất danh sách ${filteredAccounts.length} tài khoản`)
-            }}
+    <div className="flex flex-col gap-6 max-w-[1400px] mx-auto pb-8 w-full px-2">
+      {/* HEADER ROW */}
+      <div className="flex items-start justify-between mt-2">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-3xl font-semibold text-on-surface">Quản lý tài khoản</h1>
+          <p className="text-on-surface-variant text-sm">Quản lý quyền truy cập và tài khoản trên toàn bộ hệ thống Agrisage.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant rounded bg-white hover:bg-surface-container-low text-on-surface font-medium text-sm shadow-sm"
+            onClick={() => downloadCsv('tai-khoan.csv', filteredAccounts)}
           >
-            <span className="material-symbols-outlined text-[18px] text-outline">file_download</span>
-            <span>Xuất danh sách</span>
+            <span className="material-symbols-outlined text-[16px]">download</span> Xuất danh sách
           </button>
-          <button
-            className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md shadow-sm transition-colors"
+          <button 
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#171833] hover:bg-black text-white rounded font-medium text-sm shadow-sm transition-colors"
             onClick={() => setCreateOpen(true)}
           >
-            <span className="material-symbols-outlined text-[18px]">person_add</span>
-            <span>Tạo tài khoản mới</span>
+            Tạo tài khoản mới
           </button>
         </div>
       </div>
 
-      {/* KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Tổng tài khoản</span>
-            <span className="p-1 rounded bg-primary/10 text-primary material-symbols-outlined text-[18px]">group</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{totalAccounts}</div>
-            <div className="font-body-sm text-body-sm text-outline mt-1">Quản trị viên, đại lý &amp; nông dân</div>
-          </div>
-        </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Đang hoạt động</span>
-            <span className="p-1 rounded bg-emerald-50 text-emerald-700 material-symbols-outlined text-[18px]">check_circle</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-emerald-700 font-semibold">{activeCount}</div>
-            <div className="font-body-sm text-body-sm text-emerald-700 mt-1">Có thể đăng nhập &amp; sử dụng</div>
+
+
+      {/* KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-on-surface-variant font-medium">Tổng số tài khoản</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{totalAccounts}</div>
+            <div className="text-xs text-on-surface-variant mt-1">Đại lý, nông dân, quản trị viên</div>
           </div>
         </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border-2 border-amber-400/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Chờ duyệt</span>
-            <span className="p-1 rounded bg-amber-50 text-amber-700 material-symbols-outlined text-[18px]">hourglass_top</span>
-          </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{pendingCount}</div>
-            <div className="font-body-sm text-body-sm text-amber-700 font-medium mt-1">Cần xác minh trước khi kích hoạt</div>
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-on-surface-variant font-medium">Đang hoạt động</span>
+          <div>
+            <div className="text-3xl font-medium text-emerald-700">{activeCount}</div>
+            <div className="text-xs text-emerald-700/80 mt-1">Hệ thống ghi nhận bình thường</div>
           </div>
         </div>
-        <div className="p-space-base rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="font-label-md text-label-md text-outline">Bị khóa</span>
-            <span className="p-1 rounded bg-slate-100 text-slate-700 material-symbols-outlined text-[18px]">lock</span>
+        <div className="p-4 rounded-xl border-2 border-amber-400/80 bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-amber-700 font-medium">Chờ duyệt</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{pendingCount}</div>
+            <div className="text-xs text-amber-700 mt-1">Cần xem xét ngay</div>
           </div>
-          <div className="mt-space-sm">
-            <div className="font-metric-num text-metric-num text-on-surface font-semibold">{lockedCount}</div>
-            <div className="font-body-sm text-body-sm text-slate-600 mt-1">Vi phạm hoặc đang xác minh</div>
+        </div>
+        <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
+          <span className="text-sm text-on-surface-variant font-medium">Bị khóa</span>
+          <div>
+            <div className="text-3xl font-medium text-on-surface">{lockedCount}</div>
+            <div className="text-xs text-on-surface-variant mt-1">Vi phạm hoặc tạm khóa</div>
           </div>
         </div>
       </div>
 
-      {/* FILTER BAR */}
-      <div className="p-space-md rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm flex flex-wrap items-center justify-between gap-space-md">
-        <div className="flex flex-wrap items-center gap-space-sm flex-1">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder="Tìm mã / tên / email / SĐT..."
-            className="relative min-w-[240px] flex-1 max-w-sm"
-          />
-          <FilterSelect value={roleFilter} onChange={setRoleFilter} options={ROLE_OPTIONS} />
-          <FilterSelect value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
-        </div>
-        <button
-          className="px-3 py-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-low font-label-md text-label-md flex items-center gap-1 transition-colors"
-          onClick={handleClearFilters}
-        >
-          <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-          <span>Xóa bộ lọc</span>
-        </button>
-      </div>
-
-      {/* ACCOUNTS TABLE */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
-        <div className="px-space-md py-space-sm border-b border-outline-variant flex items-center justify-between bg-surface-container-low/40">
+      {/* ALERT BANNER */}
+      {pendingCount > 0 && (
+        <div className="bg-[#fff9e6] border border-[#fce69a] rounded-lg p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-title-md text-title-md text-on-surface font-semibold">Danh sách tài khoản</span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">{filteredAccounts.length} tài khoản</span>
+            <span className="material-symbols-outlined text-amber-600 text-[18px]">warning</span>
+            <span className="text-sm font-medium text-amber-900">Yêu cầu phê duyệt</span>
+          </div>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-amber-800">{pendingCount} tài khoản mới đang chờ phê duyệt. Vui lòng sử dụng bộ lọc "Trạng thái: Chờ duyệt" để xem.</span>
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
-          <table className="w-full text-left border-collapse">
+      )}
+
+      {/* TOOLBAR */}
+      <div className="flex items-center justify-between mt-2">
+        <div className="relative w-[320px]">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[18px] text-outline">search</span>
+          <input 
+            type="text" 
+            placeholder="Tìm kiếm tài khoản..." 
+            className="w-full h-9 pl-9 pr-3 text-sm bg-white border border-outline-variant rounded focus:border-primary focus:ring-1 focus:ring-primary text-on-surface shadow-sm"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-on-surface">
+            <span className="text-on-surface-variant font-medium">Vai trò:</span>
+            <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
+              <option value="">Tất cả</option>
+              <option value="Quản trị viên">Quản trị viên</option>
+              <option value="Đại lý">Đại lý</option>
+              <option value="Nông dân">Nông dân</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-on-surface">
+            <span className="text-on-surface-variant font-medium">Khu vực:</span>
+            <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={regionFilter} onChange={e => setRegionFilter(e.target.value)}>
+              <option value="">Tất cả</option>
+              <option value="Cần Thơ">Cần Thơ</option>
+              <option value="Đồng Tháp">Đồng Tháp</option>
+              <option value="Hà Nội">Hà Nội</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-on-surface">
+            <span className="text-on-surface-variant font-medium">Trạng thái:</span>
+            <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">Tất cả</option>
+              <option value="Đang hoạt động">Đang hoạt động</option>
+              <option value="Chờ duyệt">Chờ duyệt</option>
+              <option value="Bị khóa">Bị khóa</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* FLAT DATA TABLE */}
+      <div className="border border-outline-variant/60 rounded-xl overflow-hidden bg-white shadow-sm mt-2 flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[1000px]">
             <thead>
-              <tr className="bg-surface-container-low/80 border-b border-outline-variant">
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Mã</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Tài khoản</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Vai trò</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Khu vực</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Hoạt động gần nhất</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider">Trạng thái</th>
-                <th className="py-2.5 px-3 font-label-sm text-label-sm text-outline uppercase tracking-wider text-right">Thao tác</th>
+              <tr className="bg-surface-container-lowest border-b border-outline-variant/60">
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[25%] uppercase tracking-wider">Tài khoản</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[10%] uppercase tracking-wider">Vai trò</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[8%] uppercase tracking-wider">Cấp bậc</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 w-[20%] uppercase tracking-wider">Thông tin liên hệ</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[12%] uppercase tracking-wider">Ngày tạo</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[12%] uppercase tracking-wider">Khu vực</th>
+                <th className="py-3 px-4 font-semibold text-[13px] text-on-surface border-r border-outline-variant/40 text-center w-[10%] uppercase tracking-wider">Trạng thái</th>
+                <th className="py-3 px-2 w-[3%]"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/60 font-body-sm text-body-sm">
-              {filteredAccounts.length === 0 ? (
-                <EmptyTableRow colSpan={7} message="Không tìm thấy tài khoản phù hợp với bộ lọc." />
-              ) : null}
-              {paginatedAccounts.map((item) => {
-                const isSelected = item.id === selectedId
-                const statusBadge = getAccountStatusBadge(item.status)
+            <tbody className="text-sm divide-y divide-outline-variant/60">
+              {filteredAccounts.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-on-surface-variant">Không tìm thấy tài khoản phù hợp với bộ lọc.</td>
+                </tr>
+              )}
+              {paginatedAccounts.map((account) => {
+                const isSelected = account.id === selectedId
                 return (
-                  <tr
-                    key={item.id}
-                    onClick={() => setSelectedId(item.id)}
-                    className={`transition-colors cursor-pointer ${
-                      isSelected ? 'border-l-4 border-l-primary bg-primary/5 hover:bg-primary/10' : 'hover:bg-surface-container-low'
-                    }`}
-                  >
-                    <td className={`py-3 px-3 font-semibold font-mono text-xs ${isSelected ? 'text-primary' : 'text-outline'}`}>#{item.id}</td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-xs shrink-0">
-                          {item.initials}
+                  <tr key={account.id} className={`transition-colors group hover:bg-surface-container-low ${isSelected ? 'bg-primary/5' : ''}`}>
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                          {account.fullName.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-on-surface truncate">{item.fullName}</div>
-                          <div className="text-[11px] text-outline truncate">{item.email}</div>
+                          <div 
+                            className="font-medium text-on-surface text-sm cursor-pointer hover:underline truncate"
+                            onClick={() => setSelectedId(account.id)}
+                          >
+                            {account.fullName}
+                          </div>
+                          <div className="text-[11px] text-outline font-mono mt-0.5 truncate">#{account.id}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${ROLE_TAG_CLASS[item.role]}`}>{item.role}</span>
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center">
+                      <span className="text-xs font-medium text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">{account.role}</span>
                     </td>
-                    <td className="py-3 px-3 text-on-surface-variant">{item.region}</td>
-                    <td className="py-3 px-3 text-on-surface-variant text-[12px]">{item.lastActiveAgo}</td>
-                    <td className="py-3 px-3">
-                      <StatusBadge label={statusBadge.label} className={statusBadge.className} minWidthClassName="min-w-[120px]" />
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center">
+                      <span className="px-2.5 py-1 rounded-md border border-outline-variant/60 text-xs font-medium text-on-surface bg-white shadow-sm whitespace-nowrap">
+                        {mapAccessLevel(account.role)}
+                      </span>
                     </td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end">
+                    <td className="py-3 px-4 border-r border-outline-variant/40">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-xs text-on-surface-variant">
+                          <span className="material-symbols-outlined text-[14px]">mail</span>
+                          <span className="truncate max-w-[140px]">{account.email}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono">
+                          <span className="material-symbols-outlined text-[14px]">call</span>
+                          <span>{account.phone}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center text-sm text-on-surface-variant whitespace-nowrap">
+                      {account.createdAt}
+                    </td>
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center text-sm text-on-surface font-medium">
+                      {account.region || 'Hệ thống'}
+                    </td>
+                    <td className="py-3 px-4 border-r border-outline-variant/40 text-center">
+                      <span className={`px-2.5 py-1 rounded-md border text-[11px] uppercase tracking-wider font-semibold bg-white shadow-sm whitespace-nowrap
+                        ${account.status === 'Chờ duyệt' ? 'border-amber-400 text-amber-700' : ''}
+                        ${account.status === 'Đang hoạt động' ? 'border-outline-variant/60 text-on-surface' : ''}
+                        ${account.status === 'Bị khóa' ? 'border-error/40 text-error' : ''}
+                      `}>
+                        {account.status === 'Chờ duyệt' ? 'Needs review' : account.status === 'Đang hoạt động' ? 'Active' : 'Locked'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-center">
+                      <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <RowActionsMenu
-                          triggerLabel={`Thao tác tài khoản #${item.id}`}
-                          actions={accountsService.actionsFor(item.status, item.role).map((action) => ({
-                            ...action,
-                            onClick: () => handleAccountAction(item, action.id),
-                          }))}
+                          triggerLabel="Thao tác"
+                          actions={accountsService.actionsFor(account.status, account.role).map(a => ({ ...a, onClick: () => handleAccountAction(account, a.id) }))}
                         />
                       </div>
                     </td>
@@ -335,147 +332,27 @@ export default function AccountsPage() {
             </tbody>
           </table>
         </div>
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          startIndex={startIndex}
-          endIndex={endIndex}
-          totalCount={totalCount}
-          unitLabel="tài khoản"
-          goPrev={goPrev}
-          goNext={goNext}
-          setPage={setPage}
-        />
-      </div>
-
-      {/* DETAIL MODAL */}
-      <DetailModal open={selected !== null} onClose={() => setSelectedId(null)} widthClassName="max-w-lg">
-        {selected ? (
-          <div className="flex flex-col divide-y divide-outline-variant">
-            <div className="p-space-md bg-surface-container-low/50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-sm shrink-0">
-                  {selected.initials}
-                </div>
-                <div>
-                  <div className="font-title-md text-title-md text-on-surface font-semibold">{selected.fullName}</div>
-                  <div className="text-xs text-outline font-mono">#{selected.id}</div>
-                </div>
-              </div>
-              <StatusBadge label={getAccountStatusBadge(selected.status).label} className={getAccountStatusBadge(selected.status).className} />
-            </div>
-
-            <div className="p-space-md flex flex-col gap-space-xs">
-              <div className="flex items-center justify-between text-outline font-label-sm text-label-sm uppercase tracking-wide">
-                <span>1. Thông tin liên hệ</span>
-                <span className="material-symbols-outlined text-[16px]">contact_page</span>
-              </div>
-              <div className="grid grid-cols-2 gap-x-space-md gap-y-2 mt-1">
-                <div>
-                  <div className="text-[11px] text-outline">Email</div>
-                  <div className="font-medium text-on-surface text-sm">{selected.email}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] text-outline">Số điện thoại</div>
-                  <div className="font-medium text-on-surface text-sm font-mono">{selected.phone}</div>
-                </div>
-                <div className="col-span-2">
-                  <div className="text-[11px] text-outline">Địa chỉ / Khu vực</div>
-                  <div className="font-medium text-on-surface text-sm">{selected.addressDetail}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] text-outline">Ngày tạo</div>
-                  <div className="font-medium text-on-surface text-sm">{selected.createdAt}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] text-outline">Xác minh danh tính</div>
-                  <div className={`font-medium text-sm flex items-center gap-1 ${selected.verified ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    <span className="material-symbols-outlined text-[15px]">{selected.verified ? 'verified' : 'pending'}</span>
-                    {selected.verified ? 'Đã xác minh' : 'Chưa xác minh'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-space-md flex flex-col gap-space-xs">
-              <div className="flex items-center justify-between text-outline font-label-sm text-label-sm uppercase tracking-wide">
-                <span>2. Vai trò &amp; ghi chú quản trị</span>
-                <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${ROLE_TAG_CLASS[selected.role]}`}>{selected.role}</span>
-                <span className="text-xs text-outline">{selected.ordersOrCases}</span>
-                <button
-                  type="button"
-                  className="ml-auto text-xs text-primary font-medium hover:underline flex items-center gap-0.5"
-                  onClick={() => openRoleChange(selected)}
-                >
-                  <span className="material-symbols-outlined text-[14px]">edit</span>
-                  Đổi vai trò
-                </button>
-              </div>
-              <p className="text-xs text-on-surface-variant leading-relaxed bg-surface-container-low p-2 rounded mt-1">{selected.joinNote}</p>
-            </div>
-
-            <div className="p-space-md flex flex-col gap-2">
-              <div className="flex items-center justify-between text-outline font-label-sm text-label-sm uppercase tracking-wide">
-                <span>3. Lịch sử hoạt động gần đây</span>
-                <span className="material-symbols-outlined text-[16px]">history</span>
-              </div>
-              <div className="flex flex-col gap-2 text-xs">
-                {selected.activityLog.map((entry, i) => (
-                  <div key={i} className="p-2 rounded bg-surface-container-low/60 border border-outline-variant/40 flex items-start gap-2">
-                    <span className="w-2 h-2 rounded-full mt-1 shrink-0 bg-primary"></span>
-                    <div className="flex-1">
-                      <div className="text-on-surface font-medium">{entry.action}</div>
-                      <div className="text-outline text-[11px]">
-                        {entry.note} · {entry.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-space-md flex items-center gap-2 bg-surface-container-low/30">
-              {selected.status === 'Bị khóa' ? (
-                <button
-                  className="flex-1 py-2.5 px-4 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors"
-                  onClick={() => handleAccountAction(selected, 'unlock')}
-                >
-                  <span className="material-symbols-outlined text-[18px]">lock_open</span>
-                  Mở khóa tài khoản
-                </button>
-              ) : selected.status === 'Chờ duyệt' ? (
-                <>
-                  <button
-                    className="flex-1 py-2.5 px-4 rounded-lg border border-error/40 hover:bg-error/5 text-error font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors"
-                    onClick={() => handleAccountAction(selected, 'reject')}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">cancel</span>
-                    Từ chối
-                  </button>
-                  <button
-                    className="flex-1 py-2.5 px-4 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors"
-                    onClick={() => handleAccountAction(selected, 'approve')}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                    Phê duyệt
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="flex-1 py-2.5 px-4 rounded-lg border border-error/40 hover:bg-error/5 text-error font-title-md text-title-md flex items-center justify-center gap-1.5 transition-colors"
-                  onClick={() => handleAccountAction(selected, 'lock')}
-                >
-                  <span className="material-symbols-outlined text-[18px]">lock</span>
-                  Khóa tài khoản
-                </button>
-              )}
-            </div>
+        
+        {/* FOOTER PAGINATION */}
+        <div className="px-4 py-3 bg-white flex items-center justify-between text-sm text-on-surface-variant">
+          <div>
+            Hiển thị {startIndex + 1} đến {endIndex} của {totalCount} tài khoản
           </div>
-        ) : null}
-      </DetailModal>
+          <div className="flex items-center gap-6">
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalCount={totalCount}
+              unitLabel=""
+              goPrev={goPrev}
+              goNext={goNext}
+              setPage={setPage}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* CREATE ACCOUNT MODAL */}
       <FormModal
@@ -505,14 +382,59 @@ export default function AccountsPage() {
         onSubmit={handleChangeRole}
         submitLabel="Xác nhận đổi vai trò"
         fields={[
-          {
-            key: 'role',
-            label: 'Vai trò mới',
-            type: 'select',
-            options: ['Quản trị viên', 'Đại lý', 'Nông dân'],
-          },
+          { key: 'role', label: 'Vai trò mới', type: 'select', options: ['Quản trị viên', 'Đại lý', 'Nông dân'] },
         ]}
       />
-    </>
+      
+      {/* DETAIL MODAL */}
+      <DetailModal open={selected !== null} onClose={() => setSelectedId(null)} widthClassName="max-w-md">
+        {selected && (
+          <div className="p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-lg shrink-0">
+                {selected.fullName.charAt(0)}
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-on-surface">{selected.fullName}</h2>
+                <div className="text-sm text-outline font-mono">#{selected.id}</div>
+              </div>
+            </div>
+            
+            <div className="space-y-4 text-sm text-on-surface">
+              <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Trạng thái:</span>
+                <span className={`px-2.5 py-1 rounded font-semibold text-xs border ${
+                  selected.status === 'Chờ duyệt' ? 'border-amber-400 text-amber-700 bg-amber-50' : 
+                  selected.status === 'Đang hoạt động' ? 'border-outline-variant/60 text-on-surface bg-surface-container-lowest' : 'border-error/40 text-error bg-error/5'
+                }`}>{selected.status}</span>
+              </div>
+              <div className="flex justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Vai trò:</span>
+                <span>{selected.role}</span>
+              </div>
+              <div className="flex justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Khu vực:</span>
+                <span>{selected.region}</span>
+              </div>
+              <div className="flex justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Email:</span>
+                <span>{selected.email}</span>
+              </div>
+              <div className="flex justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Số ĐT:</span>
+                <span className="font-mono">{selected.phone}</span>
+              </div>
+              <div className="flex justify-between border-b border-outline-variant/40 pb-2">
+                <span className="text-on-surface-variant font-medium">Ngày tham gia:</span>
+                <span>{selected.createdAt}</span>
+              </div>
+            </div>
+            <div className="mt-8 flex justify-end">
+              <button className="px-4 py-2 bg-surface-container-low text-on-surface rounded font-medium hover:bg-outline-variant/50 transition-colors" onClick={() => setSelectedId(null)}>Đóng</button>
+            </div>
+          </div>
+        )}
+      </DetailModal>
+    </div>
   )
 }
