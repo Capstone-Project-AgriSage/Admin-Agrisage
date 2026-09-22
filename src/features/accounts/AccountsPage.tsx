@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+
 import { usePageHeader } from '../../context/PageHeaderContext'
 import { useToast } from '../../context/ToastContext'
 import RowActionsMenu from '../../components/ui/RowActionsMenu'
@@ -122,8 +122,8 @@ export default function AccountsPage() {
   }
 
   const mapAccessLevel = (role: string) => {
-    if (role === 'Quản trị viên') return 'Full'
-    if (role === 'Đại lý') return 'Scoped'
+    if (role === 'Admin') return 'Full'
+    if (role === 'Store Owner') return 'Scoped'
     return 'Read only'
   }
 
@@ -138,7 +138,15 @@ export default function AccountsPage() {
         <div className="flex items-center gap-3">
           <button 
             className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant rounded bg-white hover:bg-surface-container-low text-on-surface font-medium text-sm shadow-sm"
-            onClick={() => downloadCsv('tai-khoan.csv', filteredAccounts)}
+            onClick={() => downloadCsv('tai-khoan.csv', filteredAccounts.map(a => ({
+              ID: a.id,
+              'Họ và tên': a.fullName,
+              Email: a.email,
+              'SĐT': a.phone,
+              'Vai trò': a.role,
+              'Trạng thái': a.status,
+              'Ngày tạo': a.createdAt
+            })))}
           >
             <span className="material-symbols-outlined text-[16px]">download</span> Xuất danh sách
           </button>
@@ -215,9 +223,11 @@ export default function AccountsPage() {
             <span className="text-on-surface-variant font-medium">Vai trò:</span>
             <select className="bg-transparent font-medium outline-none cursor-pointer border-b border-dashed border-outline-variant pb-0.5" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
               <option value="">Tất cả</option>
-              <option value="Quản trị viên">Quản trị viên</option>
-              <option value="Đại lý">Đại lý</option>
-              <option value="Nông dân">Nông dân</option>
+              <option value="Admin">Quản trị viên</option>
+              <option value="Store Owner">Chủ cửa hàng</option>
+              <option value="Sales Staff">NV Bán hàng</option>
+              <option value="Delivery Staff">NV Giao hàng</option>
+              <option value="Farmer">Nông dân</option>
             </select>
           </div>
           <div className="flex items-center gap-2 text-sm text-on-surface">
@@ -367,7 +377,7 @@ export default function AccountsPage() {
           { key: 'fullName', label: 'Họ và tên', placeholder: 'Nguyễn Văn A', group: 'name' },
           { key: 'phone', label: 'Số điện thoại', placeholder: '09xx xxx xxx', group: 'name' },
           { key: 'email', label: 'Email', placeholder: 'ten@agrisage.vn', group: 'contact' },
-          { key: 'role', label: 'Vai trò', type: 'select', options: ['Đại lý', 'Nông dân', 'Quản trị viên'], group: 'contact' },
+          { key: 'role', label: 'Vai trò', type: 'select', options: ['Admin', 'Store Owner', 'Sales Staff', 'Delivery Staff', 'Farmer'], group: 'contact' },
           { key: 'region', label: 'Khu vực / Địa chỉ', placeholder: 'VD: Cần Thơ' },
         ]}
       />
@@ -382,7 +392,7 @@ export default function AccountsPage() {
         onSubmit={handleChangeRole}
         submitLabel="Xác nhận đổi vai trò"
         fields={[
-          { key: 'role', label: 'Vai trò mới', type: 'select', options: ['Quản trị viên', 'Đại lý', 'Nông dân'] },
+          { key: 'role', label: 'Vai trò mới', type: 'select', options: ['Admin', 'Store Owner', 'Sales Staff', 'Delivery Staff', 'Farmer'] },
         ]}
       />
       

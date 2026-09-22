@@ -34,9 +34,8 @@ export interface Badge {
   className: string
 }
 
-/** The three roles that exist across the AgriSage product suite today — kept in
- * sync with what each sibling app (admin/agent/farmer) actually authenticates as. */
-export type AccountRole = 'Quản trị viên' | 'Đại lý' | 'Nông dân'
+/** The roles that exist across the AgriSage product suite today. */
+export type AccountRole = 'Admin' | 'Store Owner' | 'Sales Staff' | 'Delivery Staff' | 'Farmer'
 
 export type AccountStatus = 'Đang hoạt động' | 'Bị khóa' | 'Chờ duyệt'
 
@@ -96,38 +95,6 @@ export interface Role {
   /** Set of "<moduleKey>:<permissionKey>" strings this role currently has. */
   grantedKeys: string[]
   editable: boolean
-}
-
-export type AiEscalationReason = 'Độ tin cậy thấp' | 'Đại lý từ chối' | 'Nông dân khiếu nại' | 'Đại lý yêu cầu hỗ trợ'
-
-export type AiEscalationStatus = 'Chờ Admin xử lý' | 'Đã phê duyệt' | 'Đã từ chối' | 'Đã yêu cầu khảo sát lại'
-
-export interface AiEscalationCase {
-  id: string
-  farmerName: string
-  farmerPhone: string
-  farmerLocation: string
-  agentName: string
-  agentHub: string
-  diseaseLabel: string
-  diseaseLatin?: string
-  imageSrc: string
-  imageAlt: string
-  confidencePercent: number
-  reason: AiEscalationReason
-  reasonNote: string
-  agentNote?: string
-  status: AiEscalationStatus
-  escalatedAgo: string
-  // Detail panel
-  productSuggestion?: string
-  adminDecisionNote?: string
-}
-
-export type AiEscalationActionId = 'approve' | 'reject' | 'survey'
-
-export interface AiEscalationAction extends RowAction {
-  id: AiEscalationActionId
 }
 
 export interface DashboardAlert {

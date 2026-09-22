@@ -5,7 +5,7 @@ const STORAGE_KEY = 'agrisage_admin_auth'
 
 const DEFAULT_USER: AdminUser = {
   name: 'Trần Thị Lan Anh',
-  role: 'Quản trị viên',
+  role: 'Admin',
   roleLabel: 'Quản trị viên hệ thống',
   initials: 'LA',
   email: 'admin@agrisage.vn',

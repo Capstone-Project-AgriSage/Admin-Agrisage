@@ -6,7 +6,6 @@ import FormModal from '../../components/ui/FormModal'
 import DetailModal from '../../components/ui/DetailModal'
 import { downloadCsv } from '../../utils/csv'
 import * as accountsService from '../../services/accountsService'
-import * as aiEscalationsService from '../../services/aiEscalationsService'
 import { useFormValues } from '../../hooks/useFormValues'
 
 export default function DashboardPage() {
@@ -15,19 +14,16 @@ export default function DashboardPage() {
   const { showToast } = useToast()
 
   const accounts = accountsService.list()
-  const aiEscalations = aiEscalationsService.list()
 
   const totalAccounts = accounts.length
-  const activeAgents = accounts.filter((a) => a.role === 'Đại lý' && a.status === 'Đang hoạt động').length
-  const totalFarmers = accounts.filter((a) => a.role === 'Nông dân').length
+  const activeAgents = accounts.filter((a) => a.role === 'Store Owner' && a.status === 'Đang hoạt động').length
+  const totalFarmers = accounts.filter((a) => a.role === 'Farmer').length
   const pendingAccounts = accounts.filter((a) => a.status === 'Chờ duyệt').length
 
-  const pendingAiCases = aiEscalations.filter((c) => c.status === 'Chờ Admin xử lý')
-
   const roleBreakdown = [
-    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Đại lý').length, percent: 52.2, color: 'bg-primary' },
-    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Nông dân').length, percent: 20.6, color: 'bg-primary-fixed-dim' },
-    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Quản trị viên').length, percent: 11.5, color: 'bg-surface-variant' },
+    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Store Owner').length, percent: 52.2, color: 'bg-primary' },
+    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Farmer').length, percent: 20.6, color: 'bg-primary-fixed-dim' },
+    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Admin').length, percent: 11.5, color: 'bg-surface-variant' },
   ]
 
   const recentAccounts = accounts.slice(0, 4)
@@ -46,7 +42,6 @@ export default function DashboardPage() {
       { 'Chỉ số': 'Tổng tài khoản', 'Giá trị': totalAccounts },
       { 'Chỉ số': 'Đại lý hoạt động', 'Giá trị': activeAgents },
       { 'Chỉ số': 'Nông dân', 'Giá trị': totalFarmers },
-      { 'Chỉ số': 'Ca AI chờ xử lý', 'Giá trị': pendingAiCases.length },
     ])
     showToast('Đã xuất báo cáo tổng quan hệ thống')
   }
@@ -113,16 +108,6 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-on-surface-variant">Sử dụng ứng dụng</span>
                 <span className="text-xs font-semibold text-error bg-error-container/50 px-1.5 py-0.5 rounded">-1.2%</span>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 rounded-xl border border-outline-variant bg-white flex flex-col justify-between h-32 shadow-sm">
-            <span className="text-sm text-on-surface-variant font-medium">Ca AI chờ xử lý</span>
-            <div>
-              <div className="text-3xl font-medium text-on-surface">{pendingAiCases.length}</div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-xs text-on-surface-variant">Cần xem xét</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">+2.4%</span>
               </div>
             </div>
           </div>
@@ -235,68 +220,31 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* RECENT ACCOUNTS (Wallet) */}
-        <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-on-surface">Tài khoản mới nhất</h3>
-            <Link to="/accounts" className="text-[11px] text-primary hover:underline font-medium">Xem tất cả</Link>
-          </div>
-          <div className="flex flex-col gap-4 flex-1">
-            {recentAccounts.map(a => (
-              <div 
-                key={a.id} 
-                className="flex items-center justify-between group cursor-pointer"
-                onClick={() => navigate('/accounts')}
-              >
-                <div>
-                  <div className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{a.fullName} • {a.phone}</div>
-                  <div className="text-xs text-on-surface-variant mt-0.5">{a.role}</div>
-                </div>
-                <div className="w-8 h-8 rounded border border-outline-variant flex items-center justify-center font-bold text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                  {a.fullName.charAt(0)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* UPCOMING BILLS (AI Cases) */}
-        <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-on-surface">Ca AI cần xử lý gấp</h3>
-            <Link to="/ai-moderation" className="text-[11px] text-primary hover:underline font-medium">Xem tất cả</Link>
-          </div>
-          <div className="flex items-end gap-1 mb-1">
-             <span className="text-2xl font-medium text-on-surface">{pendingAiCases.length}</span>
-             <span className="text-sm text-on-surface-variant mb-1">ca</span>
-          </div>
-          <div className="text-xs text-on-surface-variant mb-4">Bạn có <span className="font-semibold text-on-surface">{pendingAiCases.length}</span> ca AI cần xem xét hôm nay</div>
-          <div className="bg-surface-container-low text-xs text-on-surface font-medium py-1.5 px-3 rounded flex items-center gap-2 mb-4 w-max">
-            <span className="material-symbols-outlined text-[14px]">bolt</span>
-            Hệ thống tự động xử lý {pendingAiCases.length} ca
-          </div>
-          
-          <div className="flex flex-col gap-2 flex-1 overflow-auto">
-            {pendingAiCases.slice(0,3).map(c => (
-              <div 
-                key={c.id} 
-                className="flex items-center justify-between p-3 border border-outline-variant rounded-lg hover:bg-surface-container-lowest cursor-pointer transition-colors"
-                onClick={() => navigate('/ai-moderation')}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[16px] text-primary">psychology</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-on-surface">{c.diseaseLabel}</div>
-                    <div className="text-[10px] text-on-surface-variant">{c.escalatedAgo} • {c.farmerName}</div>
-                  </div>
-                </div>
-                <span className="material-symbols-outlined text-[16px] text-outline">chevron_right</span>
-              </div>
-            ))}
-          </div>
+      {/* RECENT ACCOUNTS (Wallet) */}
+      <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-on-surface">Tài khoản mới nhất</h3>
+          <Link to="/accounts" className="text-[11px] text-primary hover:underline font-medium">Xem tất cả</Link>
         </div>
+        <div className="flex flex-col gap-4 flex-1">
+          {recentAccounts.map(a => (
+            <div 
+              key={a.id} 
+              className="flex items-center justify-between group cursor-pointer"
+              onClick={() => navigate('/accounts')}
+            >
+              <div>
+                <div className="text-sm font-medium text-on-surface group-hover:text-primary transition-colors">{a.fullName} • {a.phone}</div>
+                <div className="inline-block text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded mt-0.5">{a.role}</div>
+              </div>
+              <div className="w-8 h-8 rounded border border-outline-variant flex items-center justify-center font-bold text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                {a.fullName.charAt(0)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
       </div>
 
       {/* DASHBOARD SETTINGS MODAL */}

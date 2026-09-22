@@ -3,7 +3,6 @@ import { useAuth } from '../../context/AuthContext'
 import { usePermission } from '../../context/PermissionContext'
 import type { NavItem } from '../../types'
 import * as accountsService from '../../services/accountsService'
-import * as aiEscalationsService from '../../services/aiEscalationsService'
 
 function badgeClasses(tone: NavItem['badgeTone']) {
   switch (tone) {
@@ -28,22 +27,29 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { hasPermission } = usePermission()
 
   const pendingAccountCount = accountsService.list().filter((a) => a.status === 'Chờ duyệt').length
-  const pendingAiCount = aiEscalationsService.list().filter((c) => c.status === 'Chờ Admin xử lý').length
 
   const allNavItems: NavItem[] = [
     { label: 'Tổng quan hệ thống', to: '/', icon: 'monitoring', iconTone: 'primary', permissionModule: 'reports' },
-    { label: 'Quản lý tài khoản', to: '/accounts', icon: 'group', badge: String(pendingAccountCount), badgeTone: 'warning', permissionModule: 'accounts' },
+    { label: 'Quản lý tài khoản', to: '/accounts', icon: 'group', badge: pendingAccountCount ? String(pendingAccountCount) : undefined, badgeTone: 'warning', permissionModule: 'accounts' },
     { label: 'Phân quyền', to: '/roles', icon: 'admin_panel_settings', permissionModule: 'roles' },
-    {
-      label: 'Hỗ trợ duyệt AI',
-      to: '/ai-moderation',
-      icon: 'psychology',
-      badge: String(pendingAiCount),
-      badgeTone: 'error',
-      iconTone: 'primary',
-      permissionModule: 'ai-moderation',
-    },
+    
+    // Products
+    { label: 'Danh mục', to: '/products/categories', icon: 'category', permissionModule: 'products' },
+    { label: 'Sản phẩm gốc', to: '/products/master', icon: 'inventory_2', permissionModule: 'products' },
+    { label: 'Hoạt chất', to: '/products/ingredients', icon: 'science', permissionModule: 'products' },
+    
+    // AI
+    { label: 'AI Models', to: '/ai/models', icon: 'model_training', permissionModule: 'ai-config' },
+    { label: 'AI Policy', to: '/ai/policies', icon: 'settings_suggest', permissionModule: 'ai-config' },
+    
+    // Content
+    { label: 'Bài viết', to: '/articles', icon: 'article', permissionModule: 'articles' },
+    
+    // System
+    { label: 'Thông báo', to: '/notifications', icon: 'notifications', permissionModule: 'notifications' },
+    { label: 'Nhật ký', to: '/audit-logs', icon: 'manage_search', permissionModule: 'audit-logs' },
   ]
+  
   const navItems = allNavItems.filter((item) => hasPermission(item.permissionModule, 'view'))
 
   return (
@@ -83,16 +89,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
-          <div className="mt-space-sm p-space-xs bg-surface-container-low rounded border border-outline-variant flex items-center gap-1.5 overflow-hidden">
-            <span className="material-symbols-outlined text-primary text-[16px] flex-shrink-0">dns</span>
-            <span className="font-label-md text-label-md text-on-surface truncate font-semibold">
-              Bảng điều khiển toàn hệ thống
-            </span>
-          </div>
         </div>
       </div>
 
-      <nav aria-label="Admin Navigation" className="flex-1 min-h-0 overflow-y-auto space-y-0.5 px-space-xs">
+      <nav aria-label="Admin Navigation" className="flex-1 min-h-0 overflow-y-auto space-y-1 px-space-xs">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -100,9 +100,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               end={item.to === '/'}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center justify-between px-space-md py-space-sm font-label-md text-label-md rounded transition-all ${
+                `flex items-center justify-between px-space-md py-2 font-label-md text-label-md rounded transition-all ${
                   isActive
-                    ? 'bg-surface-container text-primary font-title-md text-title-md border-r-2 border-primary rounded-l'
+                    ? 'bg-primary/10 text-primary font-title-md text-title-md font-semibold'
                     : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'
                 }`
               }
@@ -147,13 +147,6 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <h4 className="font-title-md text-title-md text-on-surface truncate">{user.name}</h4>
               <p className="font-body-sm text-body-sm text-on-surface-variant truncate">{user.roleLabel}</p>
             </div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-outline-variant/60 flex items-center justify-between text-[11px] text-on-surface-variant font-medium">
-            <span className="flex items-center gap-1 text-primary">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-              Hệ thống hoạt động ổn định
-            </span>
-            <span className="tabular-nums text-outline">v1.0.0</span>
           </div>
         </div>
       </div>

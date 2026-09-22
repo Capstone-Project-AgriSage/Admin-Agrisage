@@ -13,8 +13,8 @@ let store: Account[] = seedAccounts.map((a) => ({ ...a }))
 let nextSeq = 200
 
 function idPrefixFor(role: AccountRole) {
-  if (role === 'Đại lý') return 'AG'
-  if (role === 'Nông dân') return 'FM'
+  if (role === 'Store Owner') return 'AG'
+  if (role === 'Farmer') return 'FM'
   return 'ADM'
 }
 
@@ -28,7 +28,7 @@ function initialsFor(fullName: string) {
 }
 
 /** Which actions are valid for an account depends on both its status and its role
- * (e.g. only Đại lý accounts get "Reset mật khẩu" here; Quản trị viên accounts
+ * (e.g. only Store Owner accounts get "Reset mật khẩu" here; Admin accounts
  * manage their own password through IT, not this menu). Centralizing this beats
  * baking a slightly different action list into every mock record by hand. */
 export function actionsFor(status: AccountStatus, role: AccountRole): AccountAction[] {
@@ -46,7 +46,7 @@ export function actionsFor(status: AccountStatus, role: AccountRole): AccountAct
     ]
   }
   // 'Đang hoạt động'
-  if (role === 'Đại lý') {
+  if (role === 'Store Owner') {
     return [
       { id: 'view', label: 'Xem chi tiết', icon: 'visibility' },
       { id: 'change-role', label: 'Đổi vai trò', icon: 'admin_panel_settings' },
@@ -54,7 +54,7 @@ export function actionsFor(status: AccountStatus, role: AccountRole): AccountAct
       { id: 'lock', label: 'Khóa tài khoản', icon: 'lock', tone: 'danger' },
     ]
   }
-  if (role === 'Quản trị viên') {
+  if (role === 'Admin') {
     return [
       { id: 'view', label: 'Xem chi tiết', icon: 'visibility' },
       { id: 'change-role', label: 'Đổi vai trò', icon: 'admin_panel_settings' },
