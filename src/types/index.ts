@@ -115,3 +115,113 @@ export interface RecentActivityEntry {
   time: string
   resultClassName: string
 }
+
+// --- Products Management Types ---
+
+export type CategoryStatus = 'Hoạt động' | 'Đang ẩn'
+export interface ProductCategory {
+  id: string
+  name: string
+  parentId: string | null
+  description: string
+  status: CategoryStatus
+  createdAt: string
+  productCount: number
+}
+export type CategoryActionId = 'edit' | 'delete' | 'toggle-status'
+
+export type ProductStatus = 'Đang lưu hành' | 'Chờ duyệt' | 'Ngừng kinh doanh'
+export interface ProductMaster {
+  id: string
+  sku: string
+  name: string
+  imageUrl: string
+  categoryId: string
+  activeIngredientId: string
+  manufacturer: string
+  unit: string
+  status: ProductStatus
+  createdAt: string
+}
+export type ProductActionId = 'view' | 'edit' | 'delete' | 'approve' | 'reject'
+
+export type ToxicityClass = 'Nhóm I' | 'Nhóm II' | 'Nhóm III' | 'Nhóm IV'
+export interface ActiveIngredient {
+  id: string
+  name: string
+  chemicalName: string
+  type: string
+  toxicityClass: ToxicityClass
+  description: string
+  productCount: number
+}
+export type IngredientActionId = 'edit' | 'delete' | 'view-products'
+
+// --- AI Management Types ---
+
+export type AiModelStatus = 'Đang chạy' | 'Đang huấn luyện' | 'Đã dừng'
+export type AiModelType = 'Computer Vision' | 'NLP/Chatbot' | 'Dự báo (Prediction)'
+export interface AiModel {
+  id: string
+  name: string
+  version: string
+  type: AiModelType
+  accuracy: number
+  status: AiModelStatus
+  lastUpdated: string
+  description: string
+}
+export type AiModelActionId = 'deploy' | 'pause' | 'view-metrics'
+
+export type AiPolicyType = 'Danh sách đen (Blocklist)' | 'System Prompt' | 'Luật Fallback'
+export type AiPolicyPriority = 'Cao' | 'Trung bình' | 'Thấp'
+export interface AiPolicy {
+  id: string
+  name: string
+  type: AiPolicyType
+  priority: AiPolicyPriority
+  content: string
+  isActive: boolean
+  lastUpdated: string
+}
+export type AiPolicyActionId = 'edit' | 'delete' | 'toggle-active'
+
+// --- Content & System Types ---
+
+export type ArticleStatus = 'Đã xuất bản' | 'Bản nháp' | 'Chờ duyệt'
+export interface Article {
+  id: string
+  title: string
+  category: string
+  author: string
+  views: number
+  status: ArticleStatus
+  publishedAt: string
+}
+export type ArticleActionId = 'view' | 'edit' | 'delete' | 'approve' | 'publish'
+
+export type NotificationTarget = 'Tất cả' | 'Nông dân' | 'Đại lý' | 'Chuyên gia'
+export type NotificationStatus = 'Đã gửi' | 'Lên lịch' | 'Bản nháp'
+export interface SystemNotification {
+  id: string
+  title: string
+  content: string
+  target: NotificationTarget
+  type: 'Hệ thống' | 'Cảnh báo' | 'Khuyến mãi'
+  status: NotificationStatus
+  scheduledFor: string
+  sentCount: number
+}
+export type NotificationActionId = 'view' | 'edit' | 'delete' | 'send-now'
+
+export type AuditLogLevel = 'Info' | 'Warning' | 'Error'
+export interface AuditLog {
+  id: string
+  timestamp: string
+  actor: string
+  action: string
+  targetResource: string
+  level: AuditLogLevel
+  ipAddress: string
+}
+export type AuditLogActionId = 'view-details'

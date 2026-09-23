@@ -20,11 +20,29 @@ export default function DashboardPage() {
   const totalFarmers = accounts.filter((a) => a.role === 'Farmer').length
   const pendingAccounts = accounts.filter((a) => a.status === 'Chờ duyệt').length
 
-  const roleBreakdown = [
-    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Store Owner').length, percent: 52.2, color: 'bg-primary' },
-    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Farmer').length, percent: 20.6, color: 'bg-primary-fixed-dim' },
-    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Admin').length, percent: 11.5, color: 'bg-surface-variant' },
+  const [chartFilter, setChartFilter] = useState('Hàng tuần')
+  const [allocationFilter, setAllocationFilter] = useState('Đại lý / Nông dân')
+
+  const roleBreakdownDefault = [
+    { label: 'Đại lý', count: accounts.filter((a) => a.role === 'Store Owner').length, percent: 52.2, color: 'bg-[#16a34a]', hex: '#16a34a' },
+    { label: 'Nông dân', count: accounts.filter((a) => a.role === 'Farmer').length, percent: 36.3, color: 'bg-[#86efac]', hex: '#86efac' },
+    { label: 'Quản trị viên', count: accounts.filter((a) => a.role === 'Admin').length, percent: 11.5, color: 'bg-[#465a46]', hex: '#465a46' },
   ]
+  const roleBreakdownArea = [
+    { label: 'Miền Nam', count: 12, percent: 60, color: 'bg-[#3b82f6]', hex: '#3b82f6' },
+    { label: 'Miền Bắc', count: 5, percent: 25, color: 'bg-[#93c5fd]', hex: '#93c5fd' },
+    { label: 'Miền Trung', count: 3, percent: 15, color: 'bg-[#1e3a8a]', hex: '#1e3a8a' },
+  ]
+  const roleBreakdownStatus = [
+    { label: 'Hoạt động', count: 18, percent: 90, color: 'bg-[#10b981]', hex: '#10b981' },
+    { label: 'Chờ duyệt', count: 2, percent: 10, color: 'bg-[#f59e0b]', hex: '#f59e0b' },
+  ]
+
+  const activeBreakdown = allocationFilter === 'Theo khu vực' ? roleBreakdownArea :
+                          allocationFilter === 'Theo trạng thái' ? roleBreakdownStatus :
+                          roleBreakdownDefault;
+
+  let currentOffset = 0;
 
   const recentAccounts = accounts.slice(0, 4)
 
@@ -33,9 +51,6 @@ export default function DashboardPage() {
   const settingsForm = useFormValues({ autoRefresh: '5 phút', defaultView: 'Mặc định' })
 
   const [updateNotesOpen, setUpdateNotesOpen] = useState(false)
-
-  const [chartFilter, setChartFilter] = useState('Hàng tuần')
-  const [allocationFilter, setAllocationFilter] = useState('Đại lý / Nông dân')
 
   const handleExportData = () => {
     downloadCsv(`tong-quan-he-thong-${Date.now()}.csv`, [
@@ -118,7 +133,7 @@ export default function DashboardPage() {
           <div className="p-5 rounded-xl border border-outline-variant bg-white shadow-sm flex flex-col h-32">
             <span className="text-sm text-on-surface-variant font-medium mb-4">Phân bổ tài khoản</span>
             <div className="flex gap-4 h-full">
-              {roleBreakdown.map((r, i) => (
+              {roleBreakdownDefault.map((r, i) => (
                 <div key={r.label} className={`flex-1 border-r border-dashed border-outline-variant last:border-r-0 ${i > 0 ? 'pl-4' : ''}`}>
                   <div className="text-xs text-on-surface-variant mb-1">{r.label} - {r.percent}%</div>
                   <div className="text-lg font-medium text-on-surface mb-2">{r.count}</div>
@@ -192,9 +207,21 @@ export default function DashboardPage() {
                  {/* Background circle */}
                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#daf0da" strokeWidth="4" />
                  {/* Segments */}
-                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#16a34a" strokeWidth="4" strokeDasharray="52.2, 100" />
-                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#86efac" strokeWidth="4" strokeDasharray="20.6, 100" strokeDashoffset="-52.2" />
-                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#465a46" strokeWidth="4" strokeDasharray="11.5, 100" strokeDashoffset="-72.8" />
+                 {activeBreakdown.map((r, i) => {
+                   const offset = -currentOffset;
+                   currentOffset += r.percent;
+                   return (
+                     <path 
+                       key={i}
+                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" 
+                       fill="none" 
+                       stroke={r.hex} 
+                       strokeWidth="4" 
+                       strokeDasharray={`${r.percent}, 100`} 
+                       strokeDashoffset={offset} 
+                     />
+                   )
+                 })}
                </svg>
                <div className="absolute inset-0 flex flex-col items-center justify-center">
                  <span className="text-[10px] text-on-surface-variant">Tổng số</span>
@@ -202,7 +229,7 @@ export default function DashboardPage() {
                </div>
             </div>
             <div className="flex flex-col gap-3 min-w-[120px]">
-              {roleBreakdown.map(r => (
+              {activeBreakdown.map(r => (
                 <div key={r.label}>
                   <div className="flex items-center gap-1.5 text-xs text-on-surface-variant mb-0.5">
                     <div className={`w-1 h-3 rounded-sm ${r.color}`}></div>
